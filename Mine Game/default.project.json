@@ -1,0 +1,33 @@
+{
+  "name": "RoboFusion-Mine-Dev",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+        "$ignoreUnknownInstances": true,
+        "SharedModules": {
+          "$path": "src/ReplicatedStorage/SharedModules"
+        },
+        "$path": "src/ReplicatedStorage",
+        "Packeges": {
+          "$path": "Packages"
+        }
+    },
+
+    "ServerScriptService": {
+        "ServerModules": {
+          "$path": "src/ServerScriptService/ServerModules"
+        },
+        "$path": "src/ServerScriptService",
+        "ServerPackages": {
+          "$path": "ServerPackages"
+        }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+          "$path": "src/StarterPlayerScripts"
+      }
+    }
+  }
+}
