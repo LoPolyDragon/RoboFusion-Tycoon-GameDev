@@ -35,13 +35,13 @@ local iconMap = {
 	----------------------------------------------------------------
 	-- 机器人  ▶ 只有 Dig / Build 两条线 × 5 稀有度
 	----------------------------------------------------------------
-	Dig_UncommonBot = "rbxassetid://100694243247936",
+	Dig_UncommonBot = "rbxassetid://0", -- TODO 上传后替换
 	Dig_RareBot = "rbxassetid://0",
 	Dig_EpicBot = "rbxassetid://0",
 	Dig_MythicBot = "rbxassetid://0",
 	Dig_SecretBot = "rbxassetid://0",
 
-	Build_UncommonBot = "rbxassetid://113568386745709",
+	Build_UncommonBot = "rbxassetid://0",
 	Build_RareBot = "rbxassetid://0",
 	Build_EpicBot = "rbxassetid://0",
 	Build_MythicBot = "rbxassetid://0",

@@ -7,6 +7,7 @@ realm = "shared"
 [dependencies]
 Promise = "evaera/promise@4.0.0"
 Networker = "l3g5nd/networker@4.1.8"
+Knit = "sleitnick/knit@^1.4.3"
 
 [server-dependencies]
 ProfileService = "surnautica/profileservice@1.0.0"

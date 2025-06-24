@@ -1,23 +1,37 @@
 --------------------------------------------------------------------
--- PlayerDataService.lua  · demo 版，仅存于内存，不写 DataStore
+-- PlayerDataService.lua    生产版 · DataStore 直读
 --------------------------------------------------------------------
+local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
-local Data = {}      -- [uid] = {Inventory = {...}, gold = 0, ...}
+local PROFILE_DS = DataStoreService:GetDataStore("RobofusionTycoonData")
 
-local DEFAULT_INV = {}       -- 空包
-local DEFAULT_OTHER = 0
+local DEFAULT = require(game.ReplicatedStorage.SharedModules.GameConstants).DEFAULT_DATA
+
+local Data = {} -- [uid] = profile table  (同主城)
+
+local function deepFill(t, proto)
+	for k, v in pairs(proto) do
+		if t[k] == nil then
+			t[k] = (typeof(v) == "table") and table.clone(v) or v
+		elseif typeof(v) == "table" then
+			deepFill(t[k], v)
+		end
+	end
+end
 
 Players.PlayerAdded:Connect(function(plr)
-	-- 真正项目这里应从 DataStore/ProfileService 载档
-	Data[plr.UserId] = {
-		Inventory = table.clone(DEFAULT_INV),
-		gold      = DEFAULT_OTHER,
-	}
+	local ok, saved = pcall(PROFILE_DS.GetAsync, PROFILE_DS, "Player_" .. plr.UserId)
+	local profile = ok and saved or table.clone(DEFAULT)
+	deepFill(profile, DEFAULT)
+	Data[plr.UserId] = profile
 end)
 
 Players.PlayerRemoving:Connect(function(plr)
-	-- 真正项目这里应保存 Data[plr.UserId] 到 DataStore
-	Data[plr.UserId] = nil
+	local prof = Data[plr.UserId]
+	if prof then
+		pcall(PROFILE_DS.SetAsync, PROFILE_DS, "Player_" .. plr.UserId, prof)
+		Data[plr.UserId] = nil
+	end
 end)
 
-return Data
+return Data -- 供 GameLogicServer 直接 require

@@ -8,20 +8,17 @@
         "SharedModules": {
           "$path": "src/ReplicatedStorage/SharedModules"
         },
-        "$path": "src/ReplicatedStorage",
-        "Packeges": {
-          "$path": "Packages"
-        }
+        "ClientUtils": {
+          "$path": "src/ReplicatedStorage/ClientUtils"
+        },
+        "$path": "src/ReplicatedStorage"
     },
 
     "ServerScriptService": {
         "ServerModules": {
           "$path": "src/ServerScriptService/ServerModules"
         },
-        "$path": "src/ServerScriptService",
-        "ServerPackages": {
-          "$path": "ServerPackages"
-        }
+        "$path": "src/ServerScriptService"
     },
 
     "StarterPlayer": {

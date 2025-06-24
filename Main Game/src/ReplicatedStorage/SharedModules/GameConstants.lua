@@ -5,41 +5,47 @@ local C = {}
 
 --------------------------- 默认存档 -------------------------------
 C.DEFAULT_DATA = {
-	Scrap            = 0,
-	Credits          = 0,
-	RobotCount       = 0,
-	SignInStreakDay  = 0,
-	LastSignInTime   = 0,
-	Upgrades         = {CrusherLevel=1,GeneratorLevel=1,AssemblerLevel=1,ShipperLevel=1},
-	LastUseTime      = {Crusher=0,Generator=0, Assembler=0,Shipper=0},
-	Inventory        = {},          -- 通用背包
+	Scrap = 0,
+	Credits = 0,
+	RobotCount = 0,
+	SignInStreakDay = 0,
+	LastSignInTime = 0,
+	Upgrades = { CrusherLevel = 1, GeneratorLevel = 1, AssemblerLevel = 1, ShipperLevel = 1 },
+	LastUseTime = { Crusher = 0, Generator = 0, Assembler = 0, Shipper = 0 },
+	Inventory = {}, -- 通用背包
 	PrivateMine = {
-		seed        = 0,          -- 整形随机种子
-		lastRefresh = 0           -- 上次生成 UTC 秒
-	}
+		seed = 0, -- 整形随机种子
+		lastRefresh = 0, -- 上次生成 UTC 秒
+	},
 }
 
 ------------------------ 机器等级 → 速度 ---------------------------
 C.MachineInfo = {
-	Crusher   = { [1]={speed=2}, [2]={speed=4}, [3]={speed=6}, [4]={speed=8}, [5]={speed=10} },
-	Generator = { [1]={speed=1}, [2]={speed=2}, [3]={speed=3} },
-	Assembler = { [1]={speed=1}, [2]={speed=2} },
-	Shipper   = { [1]={speed=1}, [2]={speed=3}, [3]={speed=5} },
+	Crusher = {
+		[1] = { speed = 2 },
+		[2] = { speed = 4 },
+		[3] = { speed = 6 },
+		[4] = { speed = 8 },
+		[5] = { speed = 10 },
+	},
+	Generator = { [1] = { speed = 1 }, [2] = { speed = 2 }, [3] = { speed = 3 } },
+	Assembler = { [1] = { speed = 1 }, [2] = { speed = 2 } },
+	Shipper = { [1] = { speed = 1 }, [2] = { speed = 3 }, [3] = { speed = 5 } },
 }
 
 ------------------------- 每日签到奖励 -----------------------------
 C.DAILY_REWARDS = {
-	[1]={type="Scrap",  amount=100},
-	[2]={type="Silicon",amount=50},
-	[3]={type="Credits",amount=20},
-	[4]={type="Booster",amount=1},
-	[5]={type="Decal",  amount=1},
-	[6]={type="Eco",    amount=30},
-	[7]={type="Ticket", amount=1},
+	[1] = { type = "Scrap", amount = 100 },
+	[2] = { type = "Silicon", amount = 50 },
+	[3] = { type = "Credits", amount = 20 },
+	[4] = { type = "Booster", amount = 1 },
+	[5] = { type = "Decal", amount = 1 },
+	[6] = { type = "Eco", amount = 30 },
+	[7] = { type = "Ticket", amount = 1 },
 }
 
 ------------------------ Shell 单价 -------------------------------
-C.SHELL_COST = { RustyShell = 150, NeonCoreShell = 3000 }   -- 后续可继续补
+C.SHELL_COST = { RustyShell = 150, NeonCoreShell = 3000 } -- 后续可继续补
 
 --------------------------------------------------------------------
 -- ★ 机器人类别系统
@@ -54,28 +60,63 @@ C.BOT_CATEGORIES = {
 }
 
 --   CommonBot 五种类别池（若有 Rare/Epic… 可再建表）
-C.COMMON_CATS = { "MN","TR","SM","BT","SC" }
+C.COMMON_CATS = { "MN", "TR", "SM", "BT", "SC" }
 
 ------------------------- 每日签到奖励（8 天循环） -------------------
 C.DAILY_REWARDS = {
-	[1]={type="Scrap",        amount=500 },
-	[2]={type="Credits",      amount=1000},
-	[3]={type="RustyShell",   amount=2   },
-	[4]={type="WoodPick",     amount=1   },
-	[5]={type="TitaniumOre",  amount=25  },
-	[6]={type="EnergyCoreS",  amount=3   },
-	[7]={type="NeonCoreShell",amount=1   },
-	[8]={type="BONUS",        amount=0   },  -- VIP Bonus 占位
+	[1] = { type = "Scrap", amount = 500 },
+	[2] = { type = "Credits", amount = 1000 },
+	[3] = { type = "RustyShell", amount = 2 },
+	[4] = { type = "WoodPick", amount = 1 },
+	[5] = { type = "TitaniumOre", amount = 25 },
+	[6] = { type = "EnergyCoreS", amount = 3 },
+	[7] = { type = "NeonCoreShell", amount = 1 },
+	[8] = { type = "BONUS", amount = 0 }, -- VIP Bonus 占位
+}
+
+--------------------------------------------------------------------
+-- ★ Shell 稀有度映射
+--------------------------------------------------------------------
+C.ShellRarity = {
+	RustyShell = "Uncommon",
+	NeonCoreShell = "Rare",
+	QuantumCapsuleShell = "Epic",
+	EcoBoosterPodShell = "Mythic",
+	SecretPrototypeShell = "Secret",
+}
+
+--------------------------------------------------------------------
+-- ★ 机器人键名映射  (Dig / Build × 5 稀有度)
+--------------------------------------------------------------------
+C.RobotKey = {
+	Dig = {
+		Uncommon = "Dig_UncommonBot",
+		Rare = "Dig_RareBot",
+		Epic = "Dig_EpicBot",
+		Mythic = "Dig_MythicBot",
+		Secret = "Dig_SecretBot",
+	},
+	Build = {
+		Uncommon = "Build_UncommonBot",
+		Rare = "Build_RareBot",
+		Epic = "Build_EpicBot",
+		Mythic = "Build_MythicBot",
+		Secret = "Build_SecretBot",
+	},
 }
 
 ------------------------ 权重随机工具 ------------------------------
 function C.pickByWeighted(list)
 	local total = 0
-	for _,o in ipairs(list) do total += o.weight end
-	local r,acc = math.random(total),0
-	for _,o in ipairs(list) do
+	for _, o in ipairs(list) do
+		total += o.weight
+	end
+	local r, acc = math.random(total), 0
+	for _, o in ipairs(list) do
 		acc += o.weight
-		if r <= acc then return o.value end
+		if r <= acc then
+			return o.value
+		end
 	end
 end
 
