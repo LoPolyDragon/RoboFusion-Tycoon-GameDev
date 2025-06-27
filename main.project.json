@@ -1,0 +1,28 @@
+{
+  "$schema": "https://rojo.space/schemas/project-0.6.0.json",
+  "name": "robofusion-main",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "ClientUtils": { "$path": "Shared/ReplicatedStorage/ClientUtils" },
+      "SharedModules": {
+        "GameConstants": { "$path": "Shared/ReplicatedStorage/SharedModules/GameConstants" }
+      }
+    },
+
+    "ServerStorage": {
+      "RobotTemplates": { "$path": "Shared/ServerStorage/RobotTemplates" }
+    },
+
+    "ServerScriptService": {
+      "ServerModules": { "$path": "Main Game/src/ServerScriptService/ServerModules" },
+      “$path” : "Main Game/src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "$path": "Main Game/src/StarterPlayerScripts"
+      }
+    }
+  }
+}

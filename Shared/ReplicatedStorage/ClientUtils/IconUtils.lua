@@ -38,7 +38,7 @@ local iconMap = {
 	Dig_UncommonBot = "rbxassetid://100694243247936",
 	Dig_RareBot = "rbxassetid://0",
 	Dig_EpicBot = "rbxassetid://0",
-	Dig_MythicBot = "rbxassetid://0",
+	Dig_EcoBot = "rbxassetid://<Eco ID>",
 	Dig_SecretBot = "rbxassetid://0",
 
 	Build_UncommonBot = "rbxassetid://113568386745709",
@@ -46,6 +46,10 @@ local iconMap = {
 	Build_EpicBot = "rbxassetid://0",
 	Build_MythicBot = "rbxassetid://0",
 	Build_SecretBot = "rbxassetid://0",
+	Build_EcoBot = "rbxassetid://<Eco ID>",
+
+	-- Bot Energy
+	EnergyCoreS = "rbxassetid://116721335665314",
 
 	----------------------------------------------------------------
 	_default = "rbxasset://textures/ui/GuiImagePlaceholder.png",

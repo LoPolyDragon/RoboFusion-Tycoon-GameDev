@@ -1,76 +1,20 @@
 {
-  "name": "RoboFusion-Tycooon-GameDev",
+  "$schema": "https://rojo.space/schemas/project-0.6.0.json",
+  "name": "robofusion-local",
+  "servePort": 34872,
   "tree": {
     "$className": "DataModel",
 
-    "ReplicatedStorage": {
-        "$ignoreUnknownInstances": true,
-        "SharedModules": {
-          "$path": "src/ReplicatedStorage/SharedModules"
-        },
-        "ClientUtils": {
-          "$path": "src/ReplicatedStorage/ClientUtils"
-        },
-        "$path": "src/ReplicatedStorage"
+    "Shared": {
+      "$path": "Shared"
     },
 
-    "ServerScriptService": {
-        "ServerModules": {
-          "$path": "src/ServerScriptService/ServerModules"
-        },
-        "$path": "src/ServerScriptService"
+    "Main Game": {
+      "$path": "Main Game/src"
     },
 
-    "StarterPlayer": {
-      "StarterPlayerScripts": {
-          "$path": "src/StarterPlayerScripts"
-      }
-    },
-
-    "Workspace": {
-      "$properties": {
-        "FilteringEnabled": true
-      },
-      "Baseplate": {
-        "$className": "Part",
-        "$properties": {
-          "Anchored": true,
-          "Color": [
-            0.38823,
-            0.37254,
-            0.38823
-          ],
-          "Locked": true,
-          "Position": [
-            0,
-            -10,
-            0
-          ],
-          "Size": [
-            512,
-            20,
-            512
-          ]
-        }
-      }
-    },
-    "Lighting": {
-      "$properties": {
-        "Ambient": [
-          0,
-          0,
-          0
-        ],
-        "Brightness": 2,
-        "GlobalShadows": true,
-        "Outlines": false,
-        "Technology": "Voxel"
-      }
-    },
-    "SoundService": {
-      "$properties": {
-        "RespectFilteringEnabled": true
-      }
+    "Mine Game": {
+      "$path": "Mine Game/src"
     }
   }
 }
