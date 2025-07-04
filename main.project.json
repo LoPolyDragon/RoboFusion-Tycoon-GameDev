@@ -6,8 +6,9 @@
 
     "ReplicatedStorage": {
       "ClientUtils": { "$path": "Shared/ReplicatedStorage/ClientUtils" },
+
       "SharedModules": {
-        "GameConstants": { "$path": "Shared/ReplicatedStorage/SharedModules/GameConstants" }
+        "$path": "Shared/ReplicatedStorage/SharedModules"
       }
     },
 
@@ -16,13 +17,12 @@
     },
 
     "ServerScriptService": {
-      "ServerModules": { "$path": "Main Game/src/ServerScriptService/ServerModules" },
-      “$path” : "Main Game/src/ServerScriptService"
+      "ServerModules": { "$path": "Shared/ServerScriptService/ServerModules" },
+      "$path": "Main Game/src/ServerScriptService"
     },
+
     "StarterPlayer": {
-      "StarterPlayerScripts": {
-        "$path": "Main Game/src/StarterPlayerScripts"
-      }
+      "StarterPlayerScripts": { "$path": "Main Game/src/StarterPlayerScripts" }
     }
   }
 }

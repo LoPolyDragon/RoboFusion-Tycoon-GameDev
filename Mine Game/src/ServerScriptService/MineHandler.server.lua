@@ -1,70 +1,90 @@
 --------------------------------------------------------------------
--- MineHandler.lua   ★ 只处理“挖矿请求” + 物品掉落
+-- MineHandler.lua   ★ 只处理"挖矿请求" + 物品掉落
 --------------------------------------------------------------------
-local RS           = game:GetService("ReplicatedStorage")
-local RE         = game:GetService("ReplicatedStorage")
-	:WaitForChild("RemoteEvents"):WaitForChild("MineRequestEvent")
-local GameLogic  = require(game.ServerScriptService.ServerModules.GameLogicServer)
+local RS = game:GetService("ReplicatedStorage")
+local RE = RS:WaitForChild("RemoteEvents"):WaitForChild("MineRequestEvent")
+local GameLogic = require(game.ServerScriptService.ServerModules.GameLogicServer)
 
-
-local Const             = require(RS.SharedModules.GameConstants)
-
--- 工具参数表（后续可扩）
-local TOOL_INFO = {
-	["Wood Pick"] = { durability = 50, hardness = 2 },
-}
+local Const = require(RS.SharedModules.GameConstants)
 
 -- 矿石 → 硬度
 local ORE_HARD = {
-	Scrap       = 1,
-	IronOre     = 2,
-	BronzeOre   = 3,
-	GoldOre     = 4,
-	DiamondOre  = 5,
+	Scrap = 1,
+	Stone = 1, -- 添加Stone支持
+	IronOre = 2,
+	BronzeOre = 3,
+	GoldOre = 4,
+	DiamondOre = 5,
 	TitaniumOre = 6,
-	UraniumOre  = 6,
+	UraniumOre = 6,
 }
 
--- 每个玩家的耐久缓存（存到存档也行，这里简单放内存）
-local durCache = {}      -- [uid] = {["Wood Pick"]=剩余}
-
 ----------------------------------------------------------------
-local function getDur(plr, toolName)
-	durCache[plr.UserId] = durCache[plr.UserId] or {}
-	local tbl = durCache[plr.UserId]
-	if tbl[toolName] == nil then
-		tbl[toolName] = TOOL_INFO[toolName].durability
+local function findBestPickaxe(inv, oreHardness)
+	local best, minDur = nil, math.huge
+	for _, slot in ipairs(inv) do
+		local info = Const.PICKAXE_INFO[slot.itemId]
+		if
+			info
+			and info.maxHardness >= oreHardness
+			and slot.quantity > 0
+			and (slot.durability or info.durability) > 0
+		then
+			local dur = slot.durability or info.durability
+			if dur < minDur then
+				best, minDur = slot, dur
+			end
+		end
 	end
-	return tbl
+	return best
 end
 
 ----------------------------------------------------------------
 RE.OnServerEvent:Connect(function(plr, part)
 	-- 0) 基本合法性
-	if not (plr and plr.Character and part and part:IsDescendantOf(workspace)) then return end
+	if not (plr and plr.Character and part and part:IsDescendantOf(workspace)) then
+		return
+	end
 
 	local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-	local tool     = humanoid and humanoid:FindFirstChildOfClass("Tool")
-	if not tool    then return end
+	local tool = humanoid and humanoid:FindFirstChildOfClass("Tool")
+	if not tool then
+		return
+	end
 
-	local info     = TOOL_INFO[tool.Name]
-	if not info    then return end                      -- 非白名单工具
+	local info = Const.PICKAXE_INFO[tool.Name]
+	if not info then
+		return
+	end -- 非白名单工具
 
-	local oreType  = part.Name
+	local oreType = part.Name
 	local needHard = ORE_HARD[oreType] or 1
-	if needHard > info.hardness then
+	if needHard > info.maxHardness then
 		-- 硬度不足
-		RE:FireClient(plr, false, getDur(plr, tool.Name)[tool.Name])
+		RE:FireClient(plr, false, 0)
 		return
 	end
 
 	-- 1) 扣耐久
-	local cache = getDur(plr, tool.Name)
-	if cache[tool.Name] <= 0 then
-		RE:FireClient(plr, false, 0);  return
+	local inv = GameLogic.GetInventoryDict(plr)
+	local pickSlot = findBestPickaxe(inv, needHard)
+	if not pickSlot then
+		RE:FireClient(plr, false, 0) -- 没有可用镐子
+		return
 	end
-	cache[tool.Name] -= 1
-	local left = cache[tool.Name]
+	if pickSlot.durability == nil then
+		pickSlot.durability = Const.PICKAXE_INFO[pickSlot.itemId].durability
+	end
+	if pickSlot.durability <= 0 then
+		GameLogic.RemoveItem(plr, pickSlot.itemId, 1)
+		RE:FireClient(plr, false, 0)
+		return
+	end
+	pickSlot.durability = pickSlot.durability - 1
+	if pickSlot.durability <= 0 then
+		GameLogic.RemoveItem(plr, pickSlot.itemId, 1)
+	end
+	GameLogic.UpdateInventorySlot(plr, pickSlot)
 
 	-- 2) 计算掉落
 	local val = part:FindFirstChild("OreAmount")
@@ -79,5 +99,5 @@ RE.OnServerEvent:Connect(function(plr, part)
 	part:Destroy()
 
 	-- 4) 回包：true + 剩余耐久
-	RE:FireClient(plr, true, left)
+	RE:FireClient(plr, true, pickSlot.durability > 0 and pickSlot.durability or 0)
 end)

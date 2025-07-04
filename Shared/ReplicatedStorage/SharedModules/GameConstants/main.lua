@@ -16,7 +16,13 @@ C.DEFAULT_DATA = {
 
 ------------------------ 机器等级 → 速度 ---------------------------
 C.MachineInfo = {
-	Crusher = { [1] = { speed = 2 }, [2] = { speed = 4 }, [3] = { speed = 6 }, [4] = { speed = 8 }, [5] = { speed = 10 } },
+	Crusher = {
+		[1] = { speed = 2 },
+		[2] = { speed = 4 },
+		[3] = { speed = 6 },
+		[4] = { speed = 8 },
+		[5] = { speed = 10 },
+	},
 	Generator = { [1] = { speed = 1 }, [2] = { speed = 2 }, [3] = { speed = 3 } },
 	Assembler = { [1] = { speed = 1 }, [2] = { speed = 2 } },
 	Shipper = { [1] = { speed = 1 }, [2] = { speed = 3 }, [3] = { speed = 5 } },
@@ -67,13 +73,56 @@ C.RARITY_ORDER = { Uncommon = 1, Rare = 2, Epic = 3, Eco = 4, Secret = 5 }
 
 ------------------------- 每日签到 ------------------------------
 C.DAILY_REWARDS = {
-	{ type = "Scrap", amount = 500 },
-	{ type = "Credits", amount = 1000 },
-	{ type = "RustyShell", amount = 2 },
-	{ type = "WoodPick", amount = 1 },
-	{ type = "TitaniumOre", amount = 25 },
-	{ type = "EnergyCoreS", amount = 3 },
-	{ type = "NeonCoreShell", amount = 1 },
+	[1] = { type = "Scrap", amount = 500 },
+	[2] = { type = "Credits", amount = 1000 },
+	[3] = { type = "RustyShell", amount = 2 },
+	[4] = { type = "WoodPick", amount = 1 },
+	[5] = { type = "TitaniumOre", amount = 25 },
+	[6] = { type = "EnergyCoreS", amount = 3 },
+	[7] = { type = "NeonCoreShell", amount = 1 },
 }
+
+C.ORE_INFO = {
+	Scrap = { hardness = 0, time = 0.7 },
+	Stone = { hardness = 1, time = 1.0 },
+	IronOre = { hardness = 2, time = 1.2 },
+	BronzeOre = { hardness = 3, time = 1.6 },
+	GoldOre = { hardness = 4, time = 2.0 },
+	DiamondOre = { hardness = 5, time = 3.0 },
+	TitaniumOre = { hardness = 6, time = 4.0 },
+	UraniumOre = { hardness = 6, time = 5.0 },
+}
+
+C.BotStats = {
+	UncommonBot = { interval = 3 },
+	RareBot = { interval = 2.5 },
+	EpicBot = { interval = 2 },
+	SecretBot = { interval = 1.5 },
+	EcoBot = { interval = 1.2 },
+}
+
+C.PICKAXE_INFO = {
+	WoodPick = { maxHardness = 2, durability = 50, upgrade = { IronBar = 5 } },
+	IronPick = { maxHardness = 3, durability = 120, upgrade = { BronzeGear = 2 } },
+	BronzePick = { maxHardness = 4, durability = 250, upgrade = { GoldPlatedEdge = 1 } },
+	GoldPick = { maxHardness = 5, durability = 400, upgrade = { DiamondTip = 1 } },
+	DiamondPick = { maxHardness = 6, durability = 800, upgrade = {} },
+}
+
+C.HAMMER_INFO = {
+	WoodHammer = { minutes = 5, upgrade = { IronBar = 2 } },
+	IronHammer = { minutes = 30, upgrade = { BronzeGear = 1 } },
+	BronzeHammer = { minutes = 300, upgrade = { GoldPlatedEdge = 1 } },
+	GoldHammer = { minutes = 600, upgrade = { DiamondTip = 1 } },
+	DiamondHammer = { minutes = 6000, upgrade = {} },
+}
+
+C.BUILDING_UPGRADE_COST = {
+	Crusher = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
+	Generator = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
+	Assembler = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
+	Shipper = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
+}
+C.BUILDING_QUEUE_LIMIT = { 1, 5, 12, 25, 40, 60, 90, 130, 190, 250 }
 
 return C

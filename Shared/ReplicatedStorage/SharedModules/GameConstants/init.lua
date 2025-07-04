@@ -1,13 +1,10 @@
-local PlaceIds = {
-	MAIN = 82341741981647, -- 请替换成主城 PlaceId
-	MINE = 101306428432235, -- 替换成矿场 PlaceId
-}
+local PLACE_MAIN = 82341741981647 -- 改成你的主城 placeId
+local PLACE_MINE = 101306428432235 -- 改成你的 Mine placeId
 
-if game.PlaceId == PlaceIds.MAIN then
-	return require(script.Parent.main)
-elseif game.PlaceId == PlaceIds.MINE then
-	return require(script.Parent.mine)
+local pid = game.PlaceId
+
+if pid == PLACE_MINE then
+	return require(script.mine) -- ⚠️ 拼写：mine.lua → 实例名 “mine”
 else
-	warn("[GameConstants] Unknown place, default to main")
-	return require(script.Parent.main)
+	return require(script.main) -- main.lua → 实例名 “main”
 end

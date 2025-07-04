@@ -14,7 +14,13 @@ C.DEFAULT_DATA = {
 }
 
 C.MachineInfo = {
-	Crusher = { [1] = { speed = 2 }, [2] = { speed = 4 }, [3] = { speed = 6 }, [4] = { speed = 8 }, [5] = { speed = 10 } },
+	Crusher = {
+		[1] = { speed = 2 },
+		[2] = { speed = 4 },
+		[3] = { speed = 6 },
+		[4] = { speed = 8 },
+		[5] = { speed = 10 },
+	},
 	Generator = { [1] = { speed = 1 }, [2] = { speed = 2 }, [3] = { speed = 3 } },
 	Assembler = { [1] = { speed = 1 }, [2] = { speed = 2 } },
 	Shipper = { [1] = { speed = 1 }, [2] = { speed = 3 }, [3] = { speed = 5 } },
@@ -34,12 +40,20 @@ C.ORE_INFO = {
 	Stone = { hardness = 1, time = 1.0 },
 }
 
-C.PICK_INFO = {
-	WoodPick = { maxHardness = 2 },
-	IronPick = { maxHardness = 3 },
-	BronzePick = { maxHardness = 4 },
-	GoldPick = { maxHardness = 5 },
-	DiamondPick = { maxHardness = 6 },
+C.BotStats = {
+	UncommonBot = { interval = 3 },
+	RareBot = { interval = 2.5 },
+	EpicBot = { interval = 2 },
+	SecretBot = { interval = 1.5 },
+	EcoBot = { interval = 1.2 },
+}
+
+C.PICKAXE_INFO = {
+	WoodPick = { maxHardness = 2, speedMul = 1.0 },
+	StonePick = { maxHardness = 3, speedMul = 0.9 },
+	IronPick = { maxHardness = 4, speedMul = 0.8 },
+	GoldPick = { maxHardness = 5, speedMul = 0.7 },
+	DiamondPick = { maxHardness = 6, speedMul = 0.6 },
 }
 
 return C

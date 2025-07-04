@@ -12,7 +12,11 @@ local backRE = RS:WaitForChild("ReturnHomeEvent")
 local GameLogic = require(game.ServerScriptService.ServerModules.GameLogicServer)
 
 local RE = RS:FindFirstChild("MiningProgressEvent")
-RE.Name = "MiningProgressEvent"
+if not RE then
+	RE = Instance.new("RemoteEvent")
+	RE.Name = "MiningProgressEvent"
+	RE.Parent = RS
+end
 
 local ACTIVE = {} -- [plr] = {mdl, finish}
 
@@ -48,7 +52,7 @@ end
 
 local function canMine(plr, ore)
 	local tool = plr.Character and plr.Character:FindFirstChildWhichIsA("Tool")
-	local pk = tool and Const.PICK_INFO[tool.Name]
+	local pk = tool and Const.PICKAXE_INFO[tool.Name]
 	local cfg = Const.ORE_INFO[ore]
 	return pk and cfg and cfg.hardness <= pk.maxHardness, cfg and cfg.time
 end
