@@ -101,3 +101,20 @@ RE.OnServerEvent:Connect(function(plr, part)
 	-- 4) 回包：true + 剩余耐久
 	RE:FireClient(plr, true, pickSlot.durability > 0 and pickSlot.durability or 0)
 end)
+
+-- 添加这个函数来清除所有石头
+function MineHandler:ClearAllStones()
+	-- 遍历所有 mine 区域
+	for _, mine in pairs(self.mines) do
+		-- 清除该 mine 中的所有石头
+		if mine.stones then
+			for _, stone in pairs(mine.stones) do
+				if stone and stone.Parent then
+					stone:Destroy()
+				end
+			end
+			mine.stones = {}
+		end
+	end
+	print("All stones cleared from all mines")
+end

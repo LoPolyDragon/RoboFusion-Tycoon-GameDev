@@ -11,21 +11,21 @@
 local RS = game:GetService("ReplicatedStorage")
 
 ----------------------------------------------------------------
--- ★ 优化的地形生成参数
+-- ★ 真正的山脉地形参数
 ----------------------------------------------------------------
 local CELL_SIZE = 3 -- 每体素边长（stud）
-local GRID_SIZE = 50 -- X / Z 体素数 (平衡性能和效果)
-local MIN_HEIGHT = 8 -- 山体最低 Y（stud）
-local MAX_HEIGHT = 35 -- 最高山峰（stud，降低避免卡顿）
-local BASE_Y = 0 -- 整体抬升
+local GRID_SIZE = 60 -- X / Z 体素数 (更大区域展现山脉)
+local MIN_HEIGHT = 3 -- 山体最低 Y（stud）
+local MAX_HEIGHT = 45 -- 最高山峰（stud，真正的山峰高度）
+local BASE_Y = 10 -- 整体抬升，让山脉更壮观
 
--- 每层矿石分布 (优化高度层级)
+-- 每层矿石分布 (适应山脉高度)
 local ORE_LAYERS = {
-	{ min = 8, max = 15, ores = { "Stone", "IronOre" } },
-	{ min = 15, max = 22, ores = { "Stone", "BronzeOre" } },
-	{ min = 22, max = 28, ores = { "Stone", "GoldOre" } },
-	{ min = 28, max = 32, ores = { "Stone", "DiamondOre" } },
-	{ min = 32, max = 35, ores = { "Stone", "TitaniumOre", "UraniumOre" } },
+	{ min = 3, max = 15, ores = { "Stone", "IronOre" } },
+	{ min = 15, max = 25, ores = { "Stone", "BronzeOre" } },
+	{ min = 25, max = 35, ores = { "Stone", "GoldOre" } },
+	{ min = 35, max = 42, ores = { "Stone", "DiamondOre" } },
+	{ min = 42, max = 45, ores = { "Stone", "TitaniumOre", "UraniumOre" } },
 }
 
 local PREFABS = RS:WaitForChild("OrePrefabs")
@@ -43,25 +43,45 @@ local function ridgeNoise(x, z, seed, scale)
 	return math.abs(noise * 2 - 1) -- 产生山脊效果
 end
 
--- 优化的连绵地形噪声
+-- 真正的山脉地形生成
 local function mountainNoise(x, z, seed)
+	-- 创建多个山峰中心点
+	local peaks = {
+		{x = GRID_SIZE * 0.3, z = GRID_SIZE * 0.3, height = 0.9},
+		{x = GRID_SIZE * 0.7, z = GRID_SIZE * 0.4, height = 0.8},
+		{x = GRID_SIZE * 0.5, z = GRID_SIZE * 0.7, height = 0.85},
+		{x = GRID_SIZE * 0.2, z = GRID_SIZE * 0.8, height = 0.7},
+	}
+	
 	local height = 0
+	local totalWeight = 0
 	
-	-- 连绵的低起伏地形
-	local base = math.noise((x + seed) / 20, (z + seed) / 20) * 0.4
-	local hills = math.noise((x + seed) / 12, (z + seed) / 12) * 0.3
-	local detail = math.noise((x + seed) / 6, (z + seed) / 6) * 0.2
-	local fine = math.noise((x + seed) / 3, (z + seed) / 3) * 0.1
+	-- 计算到各个山峰的距离，创建山脉效果
+	for _, peak in pairs(peaks) do
+		local distance = math.sqrt((x - peak.x)^2 + (z - peak.z)^2)
+		local influence = math.max(0, 1 - distance / (GRID_SIZE * 0.4))
+		influence = influence^2 -- 平方衰减，创造尖锐的山峰
+		
+		height = height + peak.height * influence
+		totalWeight = totalWeight + influence
+	end
 	
-	height = base + hills + detail + fine
+	-- 添加基础噪声创造自然变化
+	local baseNoise = math.noise((x + seed) / 12, (z + seed) / 12) * 0.3
+	local detailNoise = math.noise((x + seed) / 6, (z + seed) / 6) * 0.15
 	
-	-- 更温和的边界软化，创造自然过渡
+	height = height + baseNoise + detailNoise
+	
+	-- 确保边界平滑过渡到平地
 	local centerX, centerZ = GRID_SIZE / 2, GRID_SIZE / 2
-	local distance = math.sqrt((x - centerX)^2 + (z - centerZ)^2)
-	local maxDistance = GRID_SIZE * 0.45
-	local falloff = clamp(1 - (distance / maxDistance), 0, 1)
+	local edgeDistance = math.sqrt((x - centerX)^2 + (z - centerZ)^2)
+	local maxEdgeDistance = GRID_SIZE * 0.45
+	local edgeFalloff = math.max(0, 1 - (edgeDistance / maxEdgeDistance)^1.2)
 	
-	return height * falloff
+	height = height * edgeFalloff
+	
+	-- 确保最低高度
+	return math.max(0.1, height)
 end
 
 -- 创建矿物方块（确保Part名称正确）
@@ -136,8 +156,8 @@ function MineGenerator.Generate(rootFolder, seed)
 		for z = 1, GRID_SIZE do
 			local noiseValue = mountainNoise(x, z, seed)
 			
-			-- 将噪声值映射到高度范围
-			local h = MIN_HEIGHT + (MAX_HEIGHT - MIN_HEIGHT) * (noiseValue + 1) / 2
+			-- 将噪声值映射到高度范围 (noiseValue 已经是 0-1 范围)
+			local h = MIN_HEIGHT + (MAX_HEIGHT - MIN_HEIGHT) * noiseValue
 			h = math.floor(clamp(h, MIN_HEIGHT, MAX_HEIGHT))
 			
 			height[x][z] = h
@@ -148,7 +168,7 @@ function MineGenerator.Generate(rootFolder, seed)
 	print(("[MineGenerator] 山脉高度范围: %d ~ %d studs"):format(minH, maxH))
 
 	--------------------------------------------------------------
-	-- ② 3D体素填充：山体内部 = Stone，洞穴系统
+	-- ② 3D体素填充：山体内部 = Stone，少量地下洞穴
 	--------------------------------------------------------------
 	print("[MineGenerator] 正在生成体素数据...")
 	local vox = {} -- vox[x][y][z] = {ore, isCave}
@@ -160,14 +180,11 @@ function MineGenerator.Generate(rootFolder, seed)
 			for z = 1, GRID_SIZE do
 				local inside = y <= height[x][z]
 				
-				-- 更复杂的洞穴系统
-				local caveNoise1 = math.noise((x + seed) / 8, y / 6, (z + seed) / 8)
-				local caveNoise2 = math.noise((x + seed * 2) / 12, y / 10, (z + seed * 2) / 12)
-				local cave = inside and (caveNoise1 > 0.5 or caveNoise2 > 0.55)
-				
-				-- 避免表面洞穴过多
-				if y > height[x][z] - 3 then
-					cave = cave and caveNoise1 > 0.7
+				-- 只在深处生成少量洞穴，保持山坡完整
+				local cave = false
+				if inside and y < height[x][z] - 5 then -- 只在距离表面5格以下
+					local caveNoise = math.noise((x + seed) / 10, y / 8, (z + seed) / 10)
+					cave = caveNoise > 0.6 -- 更严格的洞穴生成条件
 				end
 				
 				vox[x][y][z] = { 
@@ -187,16 +204,38 @@ function MineGenerator.Generate(rootFolder, seed)
 		return vox[x] and vox[x][y] and vox[x][y][z] and vox[x][y][z].ore == "Stone"
 	end
 	
-	-- 更大规模的矿脉生成
+	-- 改进的矿脉生成函数，增加调试信息
 	local function addLargeVein(ore, yMin, yMax, veinCnt, veinLength, thickness)
-		for _ = 1, veinCnt do
+		local placedBlocks = 0
+		local attempts = 0
+		
+		for veinIndex = 1, veinCnt do
 			local startX = math.random(5, GRID_SIZE - 5)
 			local startY = math.random(yMin, yMax)
 			local startZ = math.random(5, GRID_SIZE - 5)
 			
-			-- 确保起始点有效
+			attempts = attempts + 1
+			
+			-- 如果起始点不是石头，尝试找附近的石头
 			if not isStone(startX, startY, startZ) then
-				continue
+				local found = false
+				for dx = -3, 3 do
+					for dy = -2, 2 do
+						for dz = -3, 3 do
+							local nx, ny, nz = startX + dx, startY + dy, startZ + dz
+							if isStone(nx, ny, nz) then
+								startX, startY, startZ = nx, ny, nz
+								found = true
+								break
+							end
+						end
+						if found then break end
+					end
+					if found then break end
+				end
+				if not found then
+					continue
+				end
 			end
 			
 			-- 生成主矿脉
@@ -213,6 +252,7 @@ function MineGenerator.Generate(rootFolder, seed)
 							if distance <= thickness and math.random() < (1 - distance/thickness) then
 								if isStone(nx, ny, nz) then
 									vox[nx][ny][nz].ore = ore
+									placedBlocks = placedBlocks + 1
 								end
 							end
 						end
@@ -230,15 +270,24 @@ function MineGenerator.Generate(rootFolder, seed)
 				z = clamp(z, 2, GRID_SIZE - 1)
 			end
 		end
+		
+		print(("[DEBUG] %s: 尝试%d次，放置%d个方块"):format(ore, attempts, placedBlocks))
 	end
 
-	-- 按高度层分布不同矿物，优化数量和范围
-	addLargeVein("IronOre", 8, 18, 8, 15, 1)
-	addLargeVein("BronzeOre", 15, 25, 6, 12, 1)
-	addLargeVein("GoldOre", 22, 30, 5, 10, 1)
-	addLargeVein("DiamondOre", 28, 33, 4, 8, 1)
-	addLargeVein("TitaniumOre", 30, 35, 3, 6, 1)
-	addLargeVein("UraniumOre", 32, 35, 2, 5, 1)
+	-- 按高度层分布不同矿物，降低稀有矿物高度要求
+	print("[DEBUG] 开始生成矿脉...")
+	addLargeVein("IronOre", 1, 25, 15, 20, 2)
+	print("[DEBUG] IronOre 矿脉生成完成")
+	addLargeVein("BronzeOre", 10, 35, 12, 15, 2)
+	print("[DEBUG] BronzeOre 矿脉生成完成")
+	addLargeVein("GoldOre", 20, 40, 10, 12, 2)
+	print("[DEBUG] GoldOre 矿脉生成完成")
+	addLargeVein("DiamondOre", 25, 45, 8, 10, 1)  -- 降低最低高度
+	print("[DEBUG] DiamondOre 矿脉生成完成")
+	addLargeVein("TitaniumOre", 30, 45, 6, 8, 1)  -- 降低最低高度
+	print("[DEBUG] TitaniumOre 矿脉生成完成")
+	addLargeVein("UraniumOre", 35, 45, 4, 6, 1)   -- 降低最低高度
+	print("[DEBUG] UraniumOre 矿脉生成完成")
 
 	--------------------------------------------------------------
 	-- ④ OreFolder（★机器人脚本依赖）
@@ -273,27 +322,10 @@ function MineGenerator.Generate(rootFolder, seed)
 							
 							part.Position = Vector3.new(worldX, worldY, worldZ)
 							
-							-- 添加随机变化让地形更自然
-							local sizeVariation = 0.8 + math.random() * 0.4 -- 0.8-1.2倍
-							local newSize = CELL_SIZE * sizeVariation
-							part.Size = Vector3.new(newSize, newSize, newSize)
-							
-							-- 给表面方块添加随机旋转
-							if y >= height[x][z] - 2 then
-								part.Rotation = Vector3.new(
-									math.random(-10, 10),
-									math.random(-180, 180),
-									math.random(-10, 10)
-								)
-							end
-							
-							-- 降低碰撞检测以减少性能影响
-							if math.random() < 0.7 then -- 70%的方块有碰撞
-								part.CanCollide = true
-							else
-								part.CanCollide = false
-								part.Transparency = 0.1
-							end
+							-- 完全规整的方块，无旋转无变形
+							part.Size = Vector3.new(CELL_SIZE, CELL_SIZE, CELL_SIZE)
+							part.Rotation = Vector3.new(0, 0, 0) -- 完全无旋转
+							part.CanCollide = true
 						end
 						mdl.Parent = oreFolder
 						blockCount = blockCount + 1
@@ -303,11 +335,29 @@ function MineGenerator.Generate(rootFolder, seed)
 		end
 	end
 	
-	print("[MineGenerator] 连绵地形生成完成！")
-	print(("- 地图大小: %d×%d 体素"):format(GRID_SIZE, GRID_SIZE))
-	print(("- 高度范围: %d~%d studs"):format(minH, maxH))
-	print(("- 总方块数: %d"):format(blockCount))
-	print("- 优化的连绵地形已就绪！")
+	-- 统计各种矿物数量
+	local oreCount = {}
+	for x = 1, GRID_SIZE do
+		for z = 1, GRID_SIZE do
+			for y = 1, height[x][z] do
+				local cell = vox[x][y][z]
+				if cell and cell.ore then
+					oreCount[cell.ore] = (oreCount[cell.ore] or 0) + 1
+				end
+			end
+		end
+	end
+	
+	print("[MineGenerator] 🏔️ 山脉地形生成完成！")
+	print(("📏 地图大小: %d×%d 体素 (%.0f×%.0f studs)"):format(GRID_SIZE, GRID_SIZE, GRID_SIZE*CELL_SIZE, GRID_SIZE*CELL_SIZE))
+	print(("⛰️  高度范围: %d~%d studs"):format(minH, maxH))
+	print(("🧱 总方块数: %d"):format(blockCount))
+	print("💎 矿物分布统计:")
+	for ore, count in pairs(oreCount) do
+		print(("   %s: %d 块"):format(ore, count))
+	end
+	print(("🎯 山峰数量: 4个独立山峰"))
+	print("✅ 震撼的山脉地形已就绪！")
 end
 
 return MineGenerator
