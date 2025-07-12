@@ -101,20 +101,76 @@ C.BotStats = {
 	EcoBot = { interval = 1.2 },
 }
 
+-- 镐子信息 (根据GDD精确数值)
 C.PICKAXE_INFO = {
-	WoodPick = { maxHardness = 2, durability = 50, upgrade = { IronBar = 5 } },
-	IronPick = { maxHardness = 3, durability = 120, upgrade = { BronzeGear = 2 } },
-	BronzePick = { maxHardness = 4, durability = 250, upgrade = { GoldPlatedEdge = 1 } },
-	GoldPick = { maxHardness = 5, durability = 400, upgrade = { DiamondTip = 1 } },
-	DiamondPick = { maxHardness = 6, durability = 800, upgrade = {} },
+	WoodPick = { 
+		maxHardness = 2, 
+		durability = 50, 
+		material = "ScrapWood",
+		description = "木镐 - 耐久50格，可挖硬度1-2" 
+	},
+	IronPick = { 
+		maxHardness = 3, 
+		durability = 120, 
+		material = "IronBar",
+		description = "铁镐 - 耐久120格，可挖硬度3" 
+	},
+	BronzePick = { 
+		maxHardness = 4, 
+		durability = 250, 
+		material = "BronzeGear",
+		description = "青铜镐 - 耐久250格，可挖硬度4" 
+	},
+	GoldPick = { 
+		maxHardness = 5, 
+		durability = 400, 
+		material = "GoldPlatedEdge",
+		description = "黄金镐 - 耐久400格，可挖硬度5" 
+	},
+	DiamondPick = { 
+		maxHardness = 6, 
+		durability = 800, 
+		material = "DiamondTip",
+		description = "钻石镐 - 耐久800格，可挖硬度6（所有矿物）" 
+	},
 }
 
+-- 锤子信息 (根据GDD精确数值)
 C.HAMMER_INFO = {
-	WoodHammer = { minutes = 5, upgrade = { IronBar = 2 } },
-	IronHammer = { minutes = 30, upgrade = { BronzeGear = 1 } },
-	BronzeHammer = { minutes = 300, upgrade = { GoldPlatedEdge = 1 } },
-	GoldHammer = { minutes = 600, upgrade = { DiamondTip = 1 } },
-	DiamondHammer = { minutes = 6000, upgrade = {} },
+	WoodHammer = { 
+		minutes = 5, 
+		material = "ScrapWood",
+		description = "木锤 - 建造耐久5分钟" 
+	},
+	IronHammer = { 
+		minutes = 30, 
+		material = "IronBar", 
+		materialCount = 2,
+		description = "铁锤 - 建造耐久30分钟" 
+	},
+	BronzeHammer = { 
+		minutes = 300, 
+		material = "BronzeGear",
+		description = "青铜锤 - 建造耐久5小时" 
+	},
+	GoldHammer = { 
+		minutes = 600, 
+		material = "GoldPlatedEdge",
+		description = "黄金锤 - 建造耐久10小时" 
+	},
+	DiamondHammer = { 
+		minutes = 6000, 
+		material = "DiamondTip",
+		description = "钻石锤 - 建造耐久100小时" 
+	},
+}
+
+-- 制作材料信息
+C.CRAFT_MATERIALS = {
+	IronBar = { description = "铁锭，用于制作铁制工具" },
+	BronzeGear = { description = "青铜齿轮，用于制作青铜工具" },
+	GoldPlatedEdge = { description = "镀金边缘，用于制作黄金工具" },
+	DiamondTip = { description = "钻石尖端，用于制作钻石工具" },
 }
 
 C.BUILDING_UPGRADE_COST = {
