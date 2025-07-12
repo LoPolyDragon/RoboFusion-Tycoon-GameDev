@@ -340,7 +340,7 @@ function GL.GetBuildingQueueLimit(plr, name)
 	local save = GL.GetPlayerData(plr)
 	local up = save.Upgrades or {}
 	local level = up[name .. "Level"] or 1
-	return Const.BUILDING_QUEUE_LIMIT[level] or 1
+	return Const.BUILDING_UPGRADE_DATA.QueueLimit[level] or 1
 end
 
 return GL
