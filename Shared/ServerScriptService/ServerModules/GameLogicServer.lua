@@ -241,9 +241,10 @@ function GL.GenerateShellBatch(plr, shellId, qty)
 	end
 	d.Scrap -= need
 	for _ = 1, qty do
-		GL.AddItem(plr, (shellId == "RustyShell") and randRusty() or shellId, 1)
+		-- 所有Shell都应该添加Shell到库存，符合GDD设计
+		GL.AddItem(plr, shellId, 1)
 	end
-	return true, "+" .. qty
+	return true, "+" .. qty .. " " .. shellId
 end
 
 function GL.ShipBots(plr, botId, qty)

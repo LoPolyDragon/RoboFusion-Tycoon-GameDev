@@ -10,9 +10,33 @@ local ReplicatedStorage  = game:GetService("ReplicatedStorage")
 local player             = Players.LocalPlayer
 local playerGui          = player:WaitForChild("PlayerGui")
 
--- 主 HUD：你在 StarterGui 里建的 ScreenGui，名字叫 MainHUD
-local mainHUD            = playerGui:WaitForChild("MainHUD")
-local resourcesLabel     = mainHUD:WaitForChild("ResourcesText")  -- 白色那条文字
+-- 主 HUD：查找或创建 MainHUD
+local mainHUD = playerGui:FindFirstChild("MainHUD")
+local resourcesLabel
+
+if not mainHUD then
+    print("[ClientUIControl] MainHUD不存在，创建一个简单的")
+    -- 创建一个简单的HUD
+    mainHUD = Instance.new("ScreenGui")
+    mainHUD.Name = "MainHUD"
+    mainHUD.ResetOnSpawn = false
+    mainHUD.Parent = playerGui
+    
+    -- 创建资源显示文本
+    resourcesLabel = Instance.new("TextLabel")
+    resourcesLabel.Name = "ResourcesText"
+    resourcesLabel.Size = UDim2.new(0, 400, 0, 30)
+    resourcesLabel.Position = UDim2.new(0, 20, 0, 20)
+    resourcesLabel.BackgroundTransparency = 1
+    resourcesLabel.Text = "Scrap: 0 | Credits: 0"
+    resourcesLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    resourcesLabel.TextSize = 18
+    resourcesLabel.Font = Enum.Font.GothamBold
+    resourcesLabel.TextXAlignment = Enum.TextXAlignment.Left
+    resourcesLabel.Parent = mainHUD
+else
+    resourcesLabel = mainHUD:WaitForChild("ResourcesText")
+end
 
 -- 远程通讯
 local rfFolder           = ReplicatedStorage:WaitForChild("RemoteFunctions")

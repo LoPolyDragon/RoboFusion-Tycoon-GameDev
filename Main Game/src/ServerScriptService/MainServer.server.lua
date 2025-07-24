@@ -17,6 +17,9 @@ local DEFAULT_DATA = require(ReplicatedStorage.SharedModules.GameConstants).DEFA
 
 local MineService = require(ServerModules.MineService) -- ★ 路径已对齐
 
+-- 加载能量系统
+local EnergyManager = require(ServerModules.EnergyManager)
+
 ----------------------------------------------------------
 -- ② RemoteEvents / RemoteFunctions
 ----------------------------------------------------------
@@ -44,6 +47,14 @@ local DailyClaimEvt = RE:WaitForChild("DailySignInEvent")
 local SkipMissEvt = RE:WaitForChild("SkipMissedDayEvent")
 local TPEvent = RE:WaitForChild("TeleportToMineEvent")
 
+-- 能量站事件
+local EnergyStationEvt = RE:FindFirstChild("EnergyStationEvent")
+if not EnergyStationEvt then
+    EnergyStationEvt = Instance.new("RemoteEvent")
+    EnergyStationEvt.Name = "EnergyStationEvent"
+    EnergyStationEvt.Parent = RE
+end
+
 -- Functions
 local GetUpgradeInfoF = RF:WaitForChild("GetUpgradeInfoFunction")
 local GetInvFunc = RF:WaitForChild("GetInventoryFunction")
@@ -55,6 +66,78 @@ local DevProductId_SkipSign = 3302060423
 -- ③ 初始化业务模块
 ----------------------------------------------------------
 GameLogic.Init(SaveService, ErrorHub)
+
+-- 初始化能量系统
+task.spawn(function()
+    task.wait(2) -- 等待其他系统加载
+    EnergyManager.Initialize()
+    
+    -- 自动注册现有机器人和能量站
+    local function isRobotModel(obj)
+        -- 检查多种可能的机器人标识方式
+        if obj:GetAttribute("Type") == "Robot" then
+            return true
+        end
+        
+        -- 检查名称中是否包含机器人关键词
+        local name = obj.Name:lower()
+        if name:find("robot") or name:find("bot") or name:find("机器人") then
+            return true
+        end
+        
+        -- 检查是否有机器人相关的属性或子对象
+        if obj:GetAttribute("RobotType") then
+            return true
+        end
+        
+        -- 检查是否有Owner属性（通常机器人会有Owner）
+        if obj:GetAttribute("Owner") then
+            return true
+        end
+        
+        return false
+    end
+    
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Model") then
+            if isRobotModel(obj) then
+                local robotType = obj:GetAttribute("RobotType") or "MN"
+                EnergyManager.RegisterRobot(obj, robotType)
+                print("[MainServer] 发现并注册机器人:", obj.Name)
+            elseif obj:GetAttribute("Type") == "EnergyStation" then
+                local level = obj:GetAttribute("Level") or 1
+                EnergyManager.RegisterEnergyStation(obj, level)
+            end
+        end
+    end
+    
+    -- 监听新的机器人和能量站
+    workspace.ChildAdded:Connect(function(child)
+        if child:IsA("Model") then
+            task.wait(0.1) -- 等待属性设置
+            if isRobotModel(child) then
+                local robotType = child:GetAttribute("RobotType") or "MN"
+                EnergyManager.RegisterRobot(child, robotType)
+                print("[MainServer] 新机器人加入:", child.Name)
+            elseif child:GetAttribute("Type") == "EnergyStation" then
+                local level = child:GetAttribute("Level") or 1
+                EnergyManager.RegisterEnergyStation(child, level)
+            end
+        end
+    end)
+    
+    workspace.ChildRemoved:Connect(function(child)
+        if child:IsA("Model") then
+            if isRobotModel(child) then
+                EnergyManager.UnregisterRobot(child)
+            elseif child:GetAttribute("Type") == "EnergyStation" then
+                EnergyManager.UnregisterEnergyStation(child)
+            end
+        end
+    end)
+    
+    print("[MainServer] 能量系统已启动")
+end)
 
 local function tryPopup(plr, data)
 	local now = os.time()
@@ -225,9 +308,26 @@ AddItemEvt.OnServerEvent:Connect(function(p, id, n)
 	end
 end)
 
-AssembleShellEvt.OnServerEvent:Connect(function(p, shell)
-	local ok, msg = GameLogic.AssembleShell(p, shell)
-	AssembleShellEvt:FireClient(p, ok, msg)
+AssembleShellEvt.OnServerEvent:Connect(function(p, shell, qty)
+	qty = math.max(1, math.floor(qty or 1))
+	local results = {}
+	local totalSuccess = 0
+	
+	for i = 1, qty do
+		-- 随机选择Dig或Build (50/50概率)
+		local robotType = (math.random() < 0.5) and "Dig" or "Build"
+		local ok, msg = GameLogic.AssembleShell(p, shell, robotType)
+		if ok then
+			totalSuccess = totalSuccess + 1
+			table.insert(results, msg)  -- msg是机器人 ID
+		else
+			break  -- 如果失败就停止
+		end
+	end
+	
+	local success = totalSuccess > 0
+	local message = success and string.format("Assembled %d robots: %s", totalSuccess, table.concat(results, ", ")) or "Failed to assemble"
+	AssembleShellEvt:FireClient(p, success, message)
 	UpdateInvEvt:FireClient(p, GameLogic.GetInventoryDict(p))
 end)
 
@@ -260,6 +360,49 @@ SkipDayEvt.OnServerEvent:Connect(function(plr)
 	SkipDayEvt:FireClient(plr, ok)
 	if ok then
 		UpdateInvEvt:FireClient(plr, GameLogic.GetInventoryDict(plr))
+	end
+end)
+
+------------------------------------------------------------------
+-- 能量站事件处理
+------------------------------------------------------------------
+EnergyStationEvt.OnServerEvent:Connect(function(plr, action, stationModel, ...)
+	if action == "CHARGE_ROBOT" then
+		local robotModel, energyAmount = ...
+		if EnergyManager then
+			local success, message = EnergyManager.ChargeRobotWithCredits(plr, robotModel, energyAmount)
+			EnergyStationEvt:FireClient(plr, "CHARGE_RESULT", success, message)
+		end
+	elseif action == "UPGRADE_STATION" then
+		-- 能量站升级逻辑（简化版）
+		if stationModel and stationModel:GetAttribute("Type") == "EnergyStation" then
+			local currentLevel = stationModel:GetAttribute("Level") or 1
+			if currentLevel < 5 then
+				local upgradeCost = currentLevel * 500
+				local playerData = GameLogic.GetPlayerData(plr)
+				
+				if playerData and (playerData.Credits or 0) >= upgradeCost then
+					-- 扣除费用
+					GameLogic.AddCredits(plr, -upgradeCost)
+					
+					-- 升级能量站
+					local newLevel = currentLevel + 1
+					stationModel:SetAttribute("Level", newLevel)
+					
+					-- 重新注册到能量系统
+					if EnergyManager then
+						EnergyManager.UnregisterEnergyStation(stationModel)
+						EnergyManager.RegisterEnergyStation(stationModel, newLevel)
+					end
+					
+					EnergyStationEvt:FireClient(plr, "UPGRADE_RESULT", true, "升级成功!")
+				else
+					EnergyStationEvt:FireClient(plr, "UPGRADE_RESULT", false, "Credits不足")
+				end
+			else
+				EnergyStationEvt:FireClient(plr, "UPGRADE_RESULT", false, "已达最高等级")
+			end
+		end
 	end
 end)
 ------------------------------------------------------------------

@@ -181,4 +181,29 @@ C.BUILDING_UPGRADE_COST = {
 }
 C.BUILDING_QUEUE_LIMIT = { 1, 5, 12, 25, 40, 60, 90, 130, 190, 250 }
 
+------------------------- 能量系统配置 ------------------------------
+C.ENERGY_CONFIG = {
+	maxEnergy = 60,                    -- 机器人最大能量
+	baseChargeRate = 0.2,              -- 基础充能速度（每秒）
+	creditsChargeRatio = 100/60,       -- Credits充能比率（100 Credits = 60能量）
+	
+	-- 机器人能量消耗（每分钟）
+	robotConsumption = {
+		TR = 0.8,  -- Transport 运输机器人
+		SM = 0.5,  -- Small 小型机器人
+		SC = 1.5,  -- Scanner 扫描机器人
+		MN = 1.0,  -- Mining 挖矿机器人
+		BT = 2.0,  -- Battle 战斗机器人
+	}
+}
+
+-- 能量站配置
+C.ENERGY_STATIONS = {
+	[1] = { range = 20, chargeMultiplier = 1.0 },  -- Level 1: 范围20，速度1.0x
+	[2] = { range = 25, chargeMultiplier = 0.9 },  -- Level 2: 范围25，速度0.9x
+	[3] = { range = 30, chargeMultiplier = 0.8 },  -- Level 3: 范围30，速度0.8x
+	[4] = { range = 35, chargeMultiplier = 0.7 },  -- Level 4: 范围35，速度0.7x
+	[5] = { range = 40, chargeMultiplier = 0.6 },  -- Level 5: 范围40，速度0.6x
+}
+
 return C
