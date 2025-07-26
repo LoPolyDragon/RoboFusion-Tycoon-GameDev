@@ -2,7 +2,7 @@
 	<Meta name="ExplicitAutoJoints">true</Meta>
 	<External>null</External>
 	<External>nil</External>
-	<Item class="Model" referent="RBX2ef81cc73ee2471e8e1f4fdbf8278c6b">
+	<Item class="Model" referent="RBX973d5f09dfb04fb8997165dcc9cb584f">
 		<Properties>
 			<BinaryString name="AttributesSerialize"></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
@@ -32,12 +32,27 @@
 			<string name="Name">RareBot</string>
 			<bool name="NeedsPivotMigration">false</bool>
 			<Ref name="PrimaryPart">null</Ref>
-			<float name="ScaleFactor">1</float>
+			<float name="ScaleFactor">0.179999873</float>
 			<int64 name="SourceAssetId">-1</int64>
 			<BinaryString name="Tags"></BinaryString>
-			<OptionalCoordinateFrame name="WorldPivotData"></OptionalCoordinateFrame>
+			<OptionalCoordinateFrame name="WorldPivotData">
+				<CFrame>
+					<X>-135.999985</X>
+					<Y>50.2727203</Y>
+					<Z>-92</Z>
+					<R00>1</R00>
+					<R01>0</R01>
+					<R02>0</R02>
+					<R10>0</R10>
+					<R11>1</R11>
+					<R12>0</R12>
+					<R20>0</R20>
+					<R21>0</R21>
+					<R22>1</R22>
+				</CFrame>
+			</OptionalCoordinateFrame>
 		</Properties>
-		<Item class="MeshPart" referent="RBXbc5246efc2234fe594996dbae6e5c2ec">
+		<Item class="MeshPart" referent="RBX1cfbd7d915b848b19f36cffbaffdbcc6">
 			<Properties>
 				<SharedString name="AeroMeshData">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
 				<bool name="Anchored">false</bool>
@@ -53,8 +68,8 @@
 				<token name="BottomSurfaceInput">0</token>
 				<CoordinateFrame name="CFrame">
 					<X>-135.999985</X>
-					<Y>74.3727188</Y>
-					<Z>-92.0002441</Z>
+					<Y>53.8727188</Y>
+					<Z>-92.0000458</Z>
 					<R00>1</R00>
 					<R01>0</R01>
 					<R02>0</R02>
@@ -166,13 +181,13 @@
 				</Vector3>
 				<int name="VertexCount">0</int>
 				<Vector3 name="size">
-					<X>39.5421448</X>
-					<Y>49.9999962</Y>
-					<Z>20.1411438</Z>
+					<X>7.11758089</X>
+					<Y>8.99999332</Y>
+					<Z>3.6254034</Z>
 				</Vector3>
 			</Properties>
 		</Item>
-		<Item class="Humanoid" referent="RBX213003ba301c4290bd6c5755a9551774">
+		<Item class="Humanoid" referent="RBX1831ee62947540acb228bcc44bcbe353">
 			<Properties>
 				<BinaryString name="AttributesSerialize"></BinaryString>
 				<bool name="AutoJumpEnabled">true</bool>
@@ -185,7 +200,7 @@
 				<token name="DisplayDistanceType">0</token>
 				<string name="DisplayName"></string>
 				<bool name="EvaluateStateMachine">true</bool>
-				<float name="HealthDisplayDistance">100</float>
+				<float name="HealthDisplayDistance">17.9999866</float>
 				<token name="HealthDisplayType">0</token>
 				<float name="Health_XML">100</float>
 				<float name="HipHeight">0</float>
@@ -195,19 +210,19 @@
 					<Z>1</Z>
 				</Vector3>
 				<float name="InternalHeadScale">1</float>
-				<float name="JumpHeight">7.19999981</float>
-				<float name="JumpPower">50</float>
+				<float name="JumpHeight">1.29599905</float>
+				<float name="JumpPower">21.2131958</float>
 				<float name="MaxHealth">100</float>
 				<float name="MaxSlopeAngle">89</float>
 				<string name="Name">Humanoid</string>
-				<float name="NameDisplayDistance">100</float>
+				<float name="NameDisplayDistance">17.9999866</float>
 				<token name="NameOcclusion">2</token>
 				<bool name="RequiresNeck">true</bool>
 				<token name="RigType">0</token>
 				<int64 name="SourceAssetId">-1</int64>
 				<BinaryString name="Tags"></BinaryString>
 				<bool name="UseJumpPower">true</bool>
-				<float name="WalkSpeed">16</float>
+				<float name="WalkSpeed">2.87999797</float>
 			</Properties>
 		</Item>
 	</Item>

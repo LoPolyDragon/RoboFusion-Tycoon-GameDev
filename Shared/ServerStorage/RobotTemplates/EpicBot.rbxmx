@@ -2,7 +2,7 @@
 	<Meta name="ExplicitAutoJoints">true</Meta>
 	<External>null</External>
 	<External>nil</External>
-	<Item class="Model" referent="RBX47db2cd5c8c74c9f8d44deafdc702c42">
+	<Item class="Model" referent="RBX9c10944660a8473785e012659e239d62">
 		<Properties>
 			<BinaryString name="AttributesSerialize"></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
@@ -37,7 +37,7 @@
 			<BinaryString name="Tags"></BinaryString>
 			<OptionalCoordinateFrame name="WorldPivotData"></OptionalCoordinateFrame>
 		</Properties>
-		<Item class="MeshPart" referent="RBX9073b98acbd14c9192b196e800d47c68">
+		<Item class="MeshPart" referent="RBXd66bb6c5b2794070a3d0307b99b0192a">
 			<Properties>
 				<SharedString name="AeroMeshData">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
 				<bool name="Anchored">false</bool>
@@ -52,9 +52,9 @@
 				<token name="BottomSurface">0</token>
 				<token name="BottomSurfaceInput">0</token>
 				<CoordinateFrame name="CFrame">
-					<X>-136</X>
-					<Y>25</Y>
-					<Z>-92</Z>
+					<X>-17.9220028</X>
+					<Y>4.95000267</Y>
+					<Z>38.7085342</Z>
 					<R00>1</R00>
 					<R01>0</R01>
 					<R02>0</R02>
@@ -106,7 +106,7 @@
 				<token name="Material">256</token>
 				<string name="MaterialVariantSerialized"></string>
 				<Content name="MeshId"><url>rbxassetid://122523553803530</url></Content>
-				<string name="Name">HumanoidRootPart</string>
+				<string name="Name">Meshes/Epic Bot Model</string>
 				<SharedString name="PhysicalConfigData">VWK6ThC1jKmLleDLf36tzA==</SharedString>
 				<BinaryString name="PhysicsData"></BinaryString>
 				<CoordinateFrame name="PivotOffset">
@@ -166,48 +166,10 @@
 				</Vector3>
 				<int name="VertexCount">0</int>
 				<Vector3 name="size">
-					<X>39.0248337</X>
-					<Y>50.0000038</Y>
-					<Z>20.6595936</Z>
+					<X>7.80496788</X>
+					<Y>10</Y>
+					<Z>4.13191986</Z>
 				</Vector3>
-			</Properties>
-		</Item>
-		<Item class="Humanoid" referent="RBXba0de0ff0cac41439c56aaebff400a3d">
-			<Properties>
-				<BinaryString name="AttributesSerialize"></BinaryString>
-				<bool name="AutoJumpEnabled">true</bool>
-				<bool name="AutoRotate">true</bool>
-				<bool name="AutomaticScalingEnabled">true</bool>
-				<bool name="BreakJointsOnDeath">true</bool>
-				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
-				<token name="CollisionType">0</token>
-				<bool name="DefinesCapabilities">false</bool>
-				<token name="DisplayDistanceType">0</token>
-				<string name="DisplayName"></string>
-				<bool name="EvaluateStateMachine">true</bool>
-				<float name="HealthDisplayDistance">100</float>
-				<token name="HealthDisplayType">0</token>
-				<float name="Health_XML">100</float>
-				<float name="HipHeight">0</float>
-				<Vector3 name="InternalBodyScale">
-					<X>1</X>
-					<Y>1</Y>
-					<Z>1</Z>
-				</Vector3>
-				<float name="InternalHeadScale">1</float>
-				<float name="JumpHeight">7.19999981</float>
-				<float name="JumpPower">50</float>
-				<float name="MaxHealth">100</float>
-				<float name="MaxSlopeAngle">89</float>
-				<string name="Name">Humanoid</string>
-				<float name="NameDisplayDistance">100</float>
-				<token name="NameOcclusion">2</token>
-				<bool name="RequiresNeck">true</bool>
-				<token name="RigType">0</token>
-				<int64 name="SourceAssetId">-1</int64>
-				<BinaryString name="Tags"></BinaryString>
-				<bool name="UseJumpPower">true</bool>
-				<float name="WalkSpeed">16</float>
 			</Properties>
 		</Item>
 	</Item>

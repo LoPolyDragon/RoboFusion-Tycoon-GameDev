@@ -139,6 +139,36 @@ task.spawn(function()
     print("[MainServer] 能量系统已启动")
 end)
 
+-- 确保教程系统已加载
+task.spawn(function()
+    task.wait(1) -- 等待基础系统加载
+    
+    -- 检查教程系统是否已创建远程事件
+    local tutorialEvent = RE:FindFirstChild("TutorialEvent")
+    local tutorialFunction = RF:FindFirstChild("TutorialFunction")
+    
+    if tutorialEvent and tutorialFunction then
+        print("[MainServer] 教程系统已就绪")
+    else
+        warn("[MainServer] 教程系统未找到，检查TutorialManager.server.lua是否正常运行")
+        
+        -- 如果没有找到，手动创建（兼容性处理）
+        if not tutorialEvent then
+            local newTutorialEvent = Instance.new("RemoteEvent")
+            newTutorialEvent.Name = "TutorialEvent"
+            newTutorialEvent.Parent = RE
+            print("[MainServer] 手动创建TutorialEvent")
+        end
+        
+        if not tutorialFunction then
+            local newTutorialFunction = Instance.new("RemoteFunction")
+            newTutorialFunction.Name = "TutorialFunction"
+            newTutorialFunction.Parent = RF
+            print("[MainServer] 手动创建TutorialFunction")
+        end
+    end
+end)
+
 local function tryPopup(plr, data)
 	local now = os.time()
 	local last = data.LastSignInTime
@@ -447,6 +477,14 @@ GetUpgradeInfoF.OnServerInvoke = function(p, machine)
 	if not d then
 		return
 	end
+	
+	-- 使用新的建筑统计系统
+	local buildingStats = GameLogic.GetBuildingStats(p, machine)
+	if buildingStats then
+		return buildingStats
+	end
+	
+	-- 兼容旧系统
 	local lv = d.Upgrades[machine .. "Level"] or 1
 	local t = speedTbl[machine]
 	if not t then
@@ -460,6 +498,52 @@ GetUpgradeInfoF.OnServerInvoke = function(p, machine)
 end
 
 GetPlayerDataF.OnServerInvoke = GameLogic.GetPlayerData
+
+-- 添加建筑升级预览RemoteFunction
+local GetBuildingUpgradeInfoF = RF:FindFirstChild("GetBuildingUpgradeInfoFunction")
+if not GetBuildingUpgradeInfoF then
+	GetBuildingUpgradeInfoF = Instance.new("RemoteFunction")
+	GetBuildingUpgradeInfoF.Name = "GetBuildingUpgradeInfoFunction"
+	GetBuildingUpgradeInfoF.Parent = RF
+end
+
+GetBuildingUpgradeInfoF.OnServerInvoke = function(p, buildingType)
+	return GameLogic.GetBuildingUpgradePreview(p, buildingType)
+end
+
+-- 添加Tier相关RemoteFunctions
+local GetTierInfoF = RF:FindFirstChild("GetTierInfoFunction")
+if not GetTierInfoF then
+	GetTierInfoF = Instance.new("RemoteFunction")
+	GetTierInfoF.Name = "GetTierInfoFunction"
+	GetTierInfoF.Parent = RF
+end
+
+GetTierInfoF.OnServerInvoke = function(p)
+	return GameLogic.GetTierInfo(p)
+end
+
+local GetNextTierProgressF = RF:FindFirstChild("GetNextTierProgressFunction")
+if not GetNextTierProgressF then
+	GetNextTierProgressF = Instance.new("RemoteFunction")
+	GetNextTierProgressF.Name = "GetNextTierProgressFunction"
+	GetNextTierProgressF.Parent = RF
+end
+
+GetNextTierProgressF.OnServerInvoke = function(p)
+	return GameLogic.GetNextTierProgress(p)
+end
+
+local GetAllTiersOverviewF = RF:FindFirstChild("GetAllTiersOverviewFunction")
+if not GetAllTiersOverviewF then
+	GetAllTiersOverviewF = Instance.new("RemoteFunction")
+	GetAllTiersOverviewF.Name = "GetAllTiersOverviewFunction"
+	GetAllTiersOverviewF.Parent = RF
+end
+
+GetAllTiersOverviewF.OnServerInvoke = function(p)
+	return GameLogic.GetAllTiersOverview(p)
+end
 
 ----------------------------------------------------------
 -- ⑧ 可选：Auto‑Collect GamePass

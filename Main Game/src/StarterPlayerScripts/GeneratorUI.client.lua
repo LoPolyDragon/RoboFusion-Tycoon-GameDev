@@ -24,6 +24,9 @@ local reFolder = ReplicatedStorage:WaitForChild("RemoteEvents")
 local generateShellEvent = reFolder:WaitForChild("GenerateShellEvent") -- 使用正确的GenerateShellEvent
 local upgradeMachineEvent = reFolder:WaitForChild("UpgradeMachineEvent")
 
+-- 教程系统集成
+local tutorialEvent = reFolder:FindFirstChild("TutorialEvent")
+
 -- 加载IconUtils
 local IconUtils = require(ReplicatedStorage.ClientUtils.IconUtils)
 
@@ -536,6 +539,14 @@ function performGenerate()
     
     -- 发送生成请求 (使用GenerateShellEvent)
     generateShellEvent:FireServer(selectedShell.id, quantity)
+    
+    -- 通知教程系统生成器交互完成
+    if tutorialEvent then
+        tutorialEvent:FireServer("STEP_COMPLETED", "OPEN_GENERATOR", {
+            machineType = "Generator",
+            shellType = selectedShell.id
+        })
+    end
     
     -- 重置输入
     generatorUI.quantityInput.Text = "1"

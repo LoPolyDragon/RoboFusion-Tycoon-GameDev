@@ -53,11 +53,18 @@ end
 --------------------------------------------------------------------
 -- ◇◇ Init / Bind / Unbind ◇◇ -------------------------------------
 --------------------------------------------------------------------
+-- Tier管理器延迟加载
+local TierManager = nil
+
 function GL.Init(saveSvc)
 	SaveBridge = saveSvc or SaveBridge
 	if PlayerData then
 		return
 	end -- Mine‑Game 不再自行保存
+	
+	-- 初始化Tier管理器
+	TierManager = require(script.Parent.TierManager)
+	TierManager.Init(GL)
 
 	Players.PlayerAdded:Connect(function(p)
 		local data = cloneTab(Const.DEFAULT_DATA)
@@ -130,12 +137,24 @@ function GL.AddItem(plr, id, n)
 			slot.quantity += n
 			-- 主动推送背包刷新
 			RS.RemoteEvents.UpdateInventoryEvent:FireClient(plr, GL.GetInventoryDict(plr))
+			
+			-- 更新Tier进度
+			if TierManager then
+				TierManager.UpdateCollectionProgress(plr, id, n)
+			end
+			
 			return true
 		end
 	end
 	table.insert(inv, { itemId = id, quantity = n })
 	-- 主动推送背包刷新
 	RS.RemoteEvents.UpdateInventoryEvent:FireClient(plr, GL.GetInventoryDict(plr))
+	
+	-- 更新Tier进度
+	if TierManager then
+		TierManager.UpdateCollectionProgress(plr, id, n)
+	end
+	
 	return true
 end
 
@@ -182,12 +201,29 @@ function GL.AddScrap(plr, n)
 	end
 end
 
+function GL.AddCredits(plr, n)
+	local d = D(plr)
+	if d then
+		d.Credits += n
+	end
+end
+
 function GL.UpgradeMachine(plr, name)
 	local save = GL.GetPlayerData(plr)
 	local up = save.Upgrades or {}
 	local level = up[name .. "Level"] or 1
+	local targetLevel = level + 1
+	
 	if level >= 10 then
 		return false, "Max level"
+	end
+
+	-- 检查Tier限制
+	if TierManager then
+		local canUpgrade, message = TierManager.CanUpgradeBuilding(plr, name, targetLevel)
+		if not canUpgrade then
+			return false, message
+		end
 	end
 
 	local cost = Const.BUILDING_UPGRADE_COST[name] and Const.BUILDING_UPGRADE_COST[name][level + 1]
@@ -199,8 +235,14 @@ function GL.UpgradeMachine(plr, name)
 	end
 
 	save.Credits = save.Credits - cost
-	up[name .. "Level"] = level + 1
-	return true, "Upgraded to Lv." .. (level + 1)
+	up[name .. "Level"] = targetLevel
+	
+	-- 更新Tier进度
+	if TierManager then
+		TierManager.UpdateBuildingLevelProgress(plr, targetLevel)
+	end
+	
+	return true, "Upgraded to Lv." .. targetLevel
 end
 
 function GL.RunCrusher(plr, qty)
@@ -342,6 +384,140 @@ function GL.GetBuildingQueueLimit(plr, name)
 	local up = save.Upgrades or {}
 	local level = up[name .. "Level"] or 1
 	return Const.BUILDING_UPGRADE_DATA.QueueLimit[level] or 1
+end
+
+-- 获取建筑属性（速度、范围等）
+function GL.GetBuildingStats(plr, buildingType)
+	local save = GL.GetPlayerData(plr)
+	local up = save.Upgrades or {}
+	local level = up[buildingType .. "Level"] or 1
+	
+	local buildingData = Const.BUILDING_UPGRADE_DATA[buildingType]
+	if not buildingData then
+		return { level = level, queueLimit = Const.BUILDING_UPGRADE_DATA.QueueLimit[level] or 1 }
+	end
+	
+	local stats = { level = level, queueLimit = Const.BUILDING_UPGRADE_DATA.QueueLimit[level] or 1 }
+	
+	-- 添加建筑特定属性
+	for statName, statArray in pairs(buildingData) do
+		if statName ~= "description" and type(statArray) == "table" then
+			stats[statName] = statArray[level] or statArray[#statArray]
+		end
+	end
+	
+	return stats
+end
+
+-- 获取建筑升级预览信息
+function GL.GetBuildingUpgradePreview(plr, buildingType)
+	local save = GL.GetPlayerData(plr)
+	local up = save.Upgrades or {}
+	local currentLevel = up[buildingType .. "Level"] or 1
+	local nextLevel = currentLevel + 1
+	
+	if nextLevel > 10 then
+		return nil -- 已达最高等级
+	end
+	
+	local cost = Const.BUILDING_UPGRADE_COST[buildingType] and Const.BUILDING_UPGRADE_COST[buildingType][nextLevel]
+	if not cost then
+		return nil -- 无效建筑类型
+	end
+	
+	local currentStats = GL.GetBuildingStats(plr, buildingType)
+	local buildingData = Const.BUILDING_UPGRADE_DATA[buildingType]
+	
+	local preview = {
+		currentLevel = currentLevel,
+		nextLevel = nextLevel,
+		cost = cost,
+		canAfford = (save.Credits or 0) >= cost,
+		currentStats = currentStats,
+		nextStats = {}
+	}
+	
+	-- 计算下一级的属性
+	if buildingData then
+		for statName, statArray in pairs(buildingData) do
+			if statName ~= "description" and type(statArray) == "table" then
+				preview.nextStats[statName] = statArray[nextLevel] or statArray[#statArray]
+			end
+		end
+	end
+	
+	-- 下一级队列上限
+	preview.nextStats.queueLimit = Const.BUILDING_UPGRADE_DATA.QueueLimit[nextLevel] or Const.BUILDING_UPGRADE_DATA.QueueLimit[#Const.BUILDING_UPGRADE_DATA.QueueLimit]
+	
+	return preview
+end
+
+--------------------------------------------------------------------
+-- ◇◇ Tier系统集成 ◇◇ -------------------------------------------
+--------------------------------------------------------------------
+
+-- 添加Scrap时更新Tier进度
+function GL.AddScrap(plr, n)
+	local d = D(plr)
+	if d then
+		d.Scrap += n
+		-- 更新Tier进度
+		if TierManager then
+			TierManager.UpdateCollectionProgress(plr, "scrap", n)
+		end
+	end
+end
+
+
+-- 获取Tier相关信息的函数
+function GL.GetTierInfo(plr)
+	if not TierManager then
+		return nil
+	end
+	return TierManager.GetCurrentTierInfo(plr)
+end
+
+function GL.GetNextTierProgress(plr)
+	if not TierManager then
+		return nil
+	end
+	return TierManager.GetNextTierProgress(plr)
+end
+
+function GL.GetAllTiersOverview(plr)
+	if not TierManager then
+		return {}
+	end
+	return TierManager.GetAllTiersOverview(plr)
+end
+
+-- 检查工具和建筑解锁状态
+function GL.IsToolUnlocked(plr, toolType)
+	if not TierManager then
+		return true
+	end
+	return TierManager.IsToolUnlocked(plr, toolType)
+end
+
+function GL.IsBuildingUnlocked(plr, buildingType)
+	if not TierManager then
+		return true
+	end
+	return TierManager.IsBuildingUnlocked(plr, buildingType)
+end
+
+-- 手动标记教程完成
+function GL.MarkTutorialComplete(plr)
+	if TierManager then
+		TierManager.MarkTutorialComplete(plr)
+	end
+end
+
+-- 更新制作进度
+function GL.UpdateCraftingProgress(plr, itemType, amount)
+	if TierManager then
+		TierManager.UpdateCraftingProgress(plr, itemType, amount)
+	end
 end
 
 return GL

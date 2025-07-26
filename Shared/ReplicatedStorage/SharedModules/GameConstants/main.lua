@@ -8,10 +8,29 @@ C.DEFAULT_DATA = {
 	RobotCount = 0,
 	SignInStreakDay = 0,
 	LastSignInTime = 0,
+	PlayTime = 0, -- 总游戏时间（秒）
+	SessionStartTime = 0, -- 本次会话开始时间
 	Upgrades = { CrusherLevel = 1, GeneratorLevel = 1, AssemblerLevel = 1, ShipperLevel = 1 },
 	LastUseTime = { Crusher = 0, Generator = 0, Assembler = 0, Shipper = 0 },
 	Inventory = {},
 	PrivateMine = { seed = 0, lastRefresh = 0 },
+	-- Tier系统数据
+	CurrentTier = 0,  -- 当前解锁的Tier等级
+	MaxDepthReached = 0,  -- 到达的最大深度
+	TierProgress = {  -- 各Tier的进度跟踪
+		tutorialComplete = false,
+		scrapCollected = 0,
+		ironOreCollected = 0,
+		bronzeOreCollected = 0,
+		goldOreCollected = 0,
+		diamondOreCollected = 0,
+		titaniumOreCollected = 0,
+		ironBarCrafted = 0,
+		bronzeGearCrafted = 0,
+		goldPlatedEdgeCrafted = 0,
+		energyStationsBuilt = 0,
+		maxBuildingLevel = 1
+	}
 }
 
 ------------------------ 机器等级 → 速度 ---------------------------
@@ -178,8 +197,148 @@ C.BUILDING_UPGRADE_COST = {
 	Generator = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
 	Assembler = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
 	Shipper = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
+	ToolForge = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
+	Smelter = { 0, 100, 250, 500, 900, 1400, 2000, 3000, 4500, 6000 },
+	EnergyStation = { 0, 150, 350, 700, 1200, 1800, 2500, 3500, 5000, 7000 },
 }
-C.BUILDING_QUEUE_LIMIT = { 1, 5, 12, 25, 40, 60, 90, 130, 190, 250 }
+
+-- 建筑升级数据（根据GDD Final.md）
+C.BUILDING_UPGRADE_DATA = {
+	-- 队列上限（所有建筑通用）
+	QueueLimit = { 1, 5, 12, 25, 40, 60, 90, 130, 190, 250 },
+	
+	-- 各建筑特定属性
+	Crusher = {
+		speed = { 1, 1.3, 1.6, 2.0, 2.4, 2.8, 3.2, 3.6, 4.0, 4.5 },
+		description = "粉碎速度提升"
+	},
+	Generator = {
+		speed = { 1, 1.2, 1.4, 1.7, 2.0, 2.3, 2.6, 3.0, 3.4, 3.8 },
+		description = "生成速度提升"
+	},
+	Assembler = {
+		speed = { 1, 1.2, 1.4, 1.7, 2.0, 2.3, 2.6, 3.0, 3.4, 3.8 },
+		description = "组装速度提升"
+	},
+	Shipper = {
+		speed = { 1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0 },
+		description = "出货速度提升"
+	},
+	ToolForge = {
+		speed = { 1, 1.2, 1.4, 1.7, 2.0, 2.3, 2.6, 3.0, 3.4, 3.8 },
+		description = "制作速度提升"
+	},
+	Smelter = {
+		speed = { 1, 1.2, 1.4, 1.7, 2.0, 2.3, 2.6, 3.0, 3.4, 3.8 },
+		description = "熔炼速度提升"
+	},
+	EnergyStation = {
+		range = { 20, 25, 30, 35, 40, 45, 50, 55, 60, 70 },
+		chargeRate = { 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8 },
+		description = "充能范围和速度提升"
+	}
+}
+
+-- 兼容性保持
+C.BUILDING_QUEUE_LIMIT = C.BUILDING_UPGRADE_DATA.QueueLimit
+
+------------------------- Tier解锁系统 ------------------------------
+C.TIER_SYSTEM = {
+	-- Tier要求配置
+	REQUIREMENTS = {
+		[0] = { -- Tier 0 - 教程阶段
+			name = "新手探索者",
+			description = "完成基础教学，开始你的工业之旅",
+			requirements = {
+				scrap = 150,  -- 收集150 Scrap
+				tutorialComplete = true  -- 完成教学
+			},
+			unlocks = {
+				"Builder Bot", "基础商店", "简单工具制作"
+			}
+		},
+		[1] = { -- Tier 1 - 铁器时代 
+			name = "铁器开拓者",
+			description = "深入地下，开启铁器文明",
+			requirements = {
+				ironOre = 50,    -- 收集50个Iron Ore
+				depth = 20,      -- 达到20 stud深度
+				buildingLevel = 2  -- 至少一个建筑达到Lv2
+			},
+			unlocks = {
+				"Research Bench", "建筑Lv2解锁", "铁制工具", "Iron Bar制作"
+			}
+		},
+		[2] = { -- Tier 2 - 青铜扩展
+			name = "青铜工程师", 
+			description = "掌握合金技术，建设高效工厂",
+			requirements = {
+				bronzeOre = 30,      -- 收集30个Bronze Ore
+				ironBar = 20,        -- 制作20个Iron Bar
+				depth = 60,          -- 达到60 stud深度
+				buildingLevel = 5    -- 至少一个建筑达到Lv5
+			},
+			unlocks = {
+				"Energy Station", "建筑Lv5解锁", "青铜工具", "Bronze Gear制作", "高级制作系统"
+			}
+		},
+		[3] = { -- Tier 3 - 黄金核心
+			name = "黄金大师",
+			description = "掌握贵金属技术，进入核心时代",
+			requirements = {
+				goldOre = 20,         -- 收集20个Gold Ore 
+				bronzeGear = 15,      -- 制作15个Bronze Gear
+				depth = 100,          -- 达到100 stud深度
+				energyStation = 1     -- 建造至少1个Energy Station
+			},
+			unlocks = {
+				"核能链系统", "Eco-Core", "黄金工具", "Gold-Plated Edge制作", "高级能量管理"
+			}
+		},
+		[4] = { -- Tier 4 - 终极阶段
+			name = "钻石传奇",
+			description = "征服最深层，成为工业霸主",
+			requirements = {
+				diamondOre = 10,      -- 收集10个Diamond Ore
+				titaniumOre = 5,      -- 收集5个Titanium Ore
+				depth = 160,          -- 达到160 stud深度
+				goldPlatedEdge = 10   -- 制作10个Gold-Plated Edge
+			},
+			unlocks = {
+				"火箭装配链", "星际地图", "钻石工具", "Diamond Tip制作", "Prestige系统"
+			}
+		}
+	},
+	
+	-- 建筑等级限制
+	BUILDING_LEVEL_LIMITS = {
+		[0] = 1,  -- Tier 0: 建筑最高Lv1
+		[1] = 2,  -- Tier 1: 建筑最高Lv2
+		[2] = 5,  -- Tier 2: 建筑最高Lv5
+		[3] = 8,  -- Tier 3: 建筑最高Lv8
+		[4] = 10  -- Tier 4: 建筑最高Lv10
+	},
+	
+	-- 工具解锁要求
+	TOOL_UNLOCKS = {
+		WoodPick = 0,     -- Tier 0解锁
+		IronPick = 1,     -- Tier 1解锁
+		BronzePick = 2,   -- Tier 2解锁
+		GoldPick = 3,     -- Tier 3解锁
+		DiamondPick = 4,  -- Tier 4解锁
+	},
+	
+	-- 建筑解锁要求
+	BUILDING_UNLOCKS = {
+		Crusher = 0,       -- Tier 0解锁
+		Generator = 0,     -- Tier 0解锁
+		Assembler = 0,     -- Tier 0解锁
+		Shipper = 0,       -- Tier 0解锁
+		ToolForge = 1,     -- Tier 1解锁
+		Smelter = 1,       -- Tier 1解锁
+		EnergyStation = 2, -- Tier 2解锁
+	}
+}
 
 ------------------------- 能量系统配置 ------------------------------
 C.ENERGY_CONFIG = {
@@ -199,11 +358,11 @@ C.ENERGY_CONFIG = {
 
 -- 能量站配置
 C.ENERGY_STATIONS = {
-	[1] = { range = 20, chargeMultiplier = 1.0 },  -- Level 1: 范围20，速度1.0x
-	[2] = { range = 25, chargeMultiplier = 0.9 },  -- Level 2: 范围25，速度0.9x
-	[3] = { range = 30, chargeMultiplier = 0.8 },  -- Level 3: 范围30，速度0.8x
-	[4] = { range = 35, chargeMultiplier = 0.7 },  -- Level 4: 范围35，速度0.7x
-	[5] = { range = 40, chargeMultiplier = 0.6 },  -- Level 5: 范围40，速度0.6x
+	[1] = { range = 20, chargeMultiplier = 1.0 },   -- Level 1: 范围20，速度1.0x
+	[2] = { range = 25, chargeMultiplier = 1.25 },  -- Level 2: 范围25，速度1.25x
+	[3] = { range = 30, chargeMultiplier = 1.5 },   -- Level 3: 范围30，速度1.5x
+	[4] = { range = 35, chargeMultiplier = 1.75 },  -- Level 4: 范围35，速度1.75x
+	[5] = { range = 40, chargeMultiplier = 2.0 },   -- Level 5: 范围40，速度2.0x
 }
 
 return C

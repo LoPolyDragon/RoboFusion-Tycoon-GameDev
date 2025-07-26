@@ -5,6 +5,7 @@
 --   2) 显示Shell消耗和机器人产出
 --   3) 执行组装操作
 --   4) 包含升级功能
+--   5) 支持新的Shell孵化系统
 --------------------------------------------------------------------
 
 local Players = game:GetService("Players")
@@ -22,68 +23,99 @@ local getUpgradeInfoRF = rfFolder:WaitForChild("GetUpgradeInfoFunction")
 local getInventoryRF = rfFolder:WaitForChild("GetInventoryFunction")
 
 local reFolder = ReplicatedStorage:WaitForChild("RemoteEvents")
-local assembleShellEvent = reFolder:WaitForChild("AssembleShellEvent")  -- 使用正确的事件名
+local assembleShellEvent = reFolder:WaitForChild("AssembleShellEvent")
 local upgradeMachineEvent = reFolder:WaitForChild("UpgradeMachineEvent")
+
+-- 教程系统集成
+local tutorialEvent = reFolder:FindFirstChild("TutorialEvent")
 
 -- 加载配置和图标
 local GameConstants = require(ReplicatedStorage.SharedModules.GameConstants.main)
 local IconUtils = require(ReplicatedStorage.ClientUtils.IconUtils)
-local RobotKey = GameConstants.RobotKey
-local ShellRarity = GameConstants.ShellRarity
 
--- Shell到机器人映射配置
-local SHELL_TO_ROBOT = {
-    {
-        shellId = "RustyShell",
+-- Shell配置数据（与服务器端同步）
+local SHELL_CONFIG = {
+    RustyShell = {
         name = "Rusty Shell",
         rarity = "Uncommon",
         color = Color3.fromRGB(139, 69, 19),
+        scrapCost = 10,
         outputs = {
-            {robotId = "Dig_UncommonBot", chance = 50},
-            {robotId = "Build_UncommonBot", chance = 50}
-        }
+            {robotId = "Dig_UncommonBot", chance = 50, type = "Dig"},
+            {robotId = "Build_UncommonBot", chance = 50, type = "Build"}
+        },
+        successRate = 95,
+        assemblyTime = 3.0
     },
-    {
-        shellId = "NeonCoreShell", 
-        name = "Neon Core Shell",
+    NeonCoreShell = {
+        name = "Neon Core Shell", 
         rarity = "Rare",
         color = Color3.fromRGB(0, 255, 255),
+        scrapCost = 100,
         outputs = {
-            {robotId = "Dig_RareBot", chance = 50},
-            {robotId = "Build_RareBot", chance = 50}
-        }
+            {robotId = "Dig_RareBot", chance = 50, type = "Dig"},
+            {robotId = "Build_RareBot", chance = 50, type = "Build"}
+        },
+        successRate = 85,
+        assemblyTime = 10.0
     },
-    {
-        shellId = "QuantumCapsuleShell",
+    QuantumCapsuleShell = {
         name = "Quantum Capsule",
-        rarity = "Epic", 
+        rarity = "Epic",
         color = Color3.fromRGB(128, 0, 128),
+        scrapCost = 500,
         outputs = {
-            {robotId = "Dig_EpicBot", chance = 50},
-            {robotId = "Build_EpicBot", chance = 50}
-        }
+            {robotId = "Dig_EpicBot", chance = 45, type = "Dig"},
+            {robotId = "Build_EpicBot", chance = 45, type = "Build"},
+            {robotId = "Dig_SecretBot", chance = 5, type = "Dig"},
+            {robotId = "Build_SecretBot", chance = 5, type = "Build"}
+        },
+        successRate = 75,
+        assemblyTime = 60.0
     },
-    {
-        shellId = "EcoBoosterPodShell",
+    EcoBoosterPodShell = {
         name = "Eco Booster Pod",
         rarity = "Eco",
         color = Color3.fromRGB(0, 255, 0),
+        scrapCost = 200,
         outputs = {
-            {robotId = "Dig_EcoBot", chance = 50},
-            {robotId = "Build_EcoBot", chance = 50}
-        }
+            {robotId = "Dig_EcoBot", chance = 50, type = "Dig"},
+            {robotId = "Build_EcoBot", chance = 50, type = "Build"}
+        },
+        successRate = 90,
+        assemblyTime = 20.0
     },
-    {
-        shellId = "SecretPrototypeShell",
+    SecretPrototypeShell = {
         name = "Secret Prototype",
         rarity = "Secret",
         color = Color3.fromRGB(50, 50, 50),
+        scrapCost = 1000,
         outputs = {
-            {robotId = "Dig_SecretBot", chance = 50},
-            {robotId = "Build_SecretBot", chance = 50}
-        }
+            {robotId = "Dig_SecretBot", chance = 40, type = "Dig"},
+            {robotId = "Build_SecretBot", chance = 40, type = "Build"},
+            {robotId = "Dig_EpicBot", chance = 10, type = "Dig"},
+            {robotId = "Build_EpicBot", chance = 10, type = "Build"}
+        },
+        successRate = 60,
+        assemblyTime = 45.0
     }
 }
+
+-- 将配置转换为数组格式以便UI使用
+local SHELL_TO_ROBOT = {}
+for shellId, config in pairs(SHELL_CONFIG) do
+    local shellInfo = {
+        shellId = shellId,
+        name = config.name,
+        rarity = config.rarity,
+        color = config.color,
+        scrapCost = config.scrapCost,
+        outputs = config.outputs,
+        successRate = config.successRate,
+        assemblyTime = config.assemblyTime
+    }
+    table.insert(SHELL_TO_ROBOT, shellInfo)
+end
 
 --------------------------------------------------------------------
 -- 创建Assembler UI
@@ -126,7 +158,7 @@ local function createAssemblerUI()
     titleLabel.Size = UDim2.new(1, -50, 1, 0)
     titleLabel.Position = UDim2.new(0, 15, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "Assembler"
+    titleLabel.Text = "Shell Assembler"
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     titleLabel.TextScaled = true
     titleLabel.Font = Enum.Font.GothamBold
@@ -240,7 +272,7 @@ local function createAssemblerUI()
     upgradeInfoLabel.Size = UDim2.new(0.6, 0, 0.4, 0)
     upgradeInfoLabel.Position = UDim2.new(0, 10, 0.5, 0)
     upgradeInfoLabel.BackgroundTransparency = 1
-    upgradeInfoLabel.Text = "Assembler Lv.1 → Lv.2 (Speed: 1 → 2)"
+    upgradeInfoLabel.Text = "Assembler Lv.1 → Lv.2 (Queue: 1 → 5)"
     upgradeInfoLabel.TextColor3 = Color3.fromRGB(80, 80, 80)
     upgradeInfoLabel.TextScaled = true
     upgradeInfoLabel.Font = Enum.Font.Gotham
@@ -271,7 +303,7 @@ end
 --------------------------------------------------------------------
 -- 创建Shell卡片
 --------------------------------------------------------------------
-local function createShellCard(shellInfo, parent, inventory)
+local function createShellCard(shellInfo, parent, inventory, playerData)
     local cardFrame = Instance.new("TextButton")
     cardFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     cardFrame.BorderSizePixel = 2
@@ -285,7 +317,7 @@ local function createShellCard(shellInfo, parent, inventory)
     -- Shell图标 (使用IconUtils)
     local iconLabel = Instance.new("ImageLabel")
     iconLabel.Size = UDim2.new(0, 50, 0, 50)
-    iconLabel.Position = UDim2.new(0.5, -25, 0, 10)
+    iconLabel.Position = UDim2.new(0.5, -25, 0, 5)
     iconLabel.BackgroundColor3 = shellInfo.color
     iconLabel.Image = IconUtils.getItemIcon(shellInfo.shellId)
     iconLabel.ScaleType = Enum.ScaleType.Fit
@@ -298,8 +330,8 @@ local function createShellCard(shellInfo, parent, inventory)
     
     -- Shell名称
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, -10, 0, 25)
-    nameLabel.Position = UDim2.new(0, 5, 0, 65)
+    nameLabel.Size = UDim2.new(1, -10, 0, 20)
+    nameLabel.Position = UDim2.new(0, 5, 0, 58)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = shellInfo.name
     nameLabel.TextColor3 = Color3.fromRGB(60, 60, 60)
@@ -317,8 +349,8 @@ local function createShellCard(shellInfo, parent, inventory)
     end
     
     local countLabel = Instance.new("TextLabel")
-    countLabel.Size = UDim2.new(1, -10, 0, 20)
-    countLabel.Position = UDim2.new(0, 5, 0, 90)
+    countLabel.Size = UDim2.new(1, -10, 0, 18)
+    countLabel.Position = UDim2.new(0, 5, 0, 78)
     countLabel.BackgroundTransparency = 1
     countLabel.Text = string.format("Available: %d", availableCount)
     countLabel.TextColor3 = availableCount > 0 and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(200, 50, 50)
@@ -326,40 +358,104 @@ local function createShellCard(shellInfo, parent, inventory)
     countLabel.Font = Enum.Font.Gotham
     countLabel.Parent = cardFrame
     
-    -- 输出机器人信息
+    -- Scrap消耗信息
+    local scrapCostLabel = Instance.new("TextLabel")
+    scrapCostLabel.Size = UDim2.new(1, -10, 0, 15)
+    scrapCostLabel.Position = UDim2.new(0, 5, 0, 96)
+    scrapCostLabel.BackgroundTransparency = 1
+    scrapCostLabel.Text = string.format("Scrap: %d each", shellInfo.scrapCost or 0)
+    scrapCostLabel.TextColor3 = Color3.fromRGB(150, 100, 50)
+    scrapCostLabel.TextScaled = true
+    scrapCostLabel.Font = Enum.Font.Gotham
+    scrapCostLabel.Parent = cardFrame
+    
+    -- 成功率信息
+    local successRateLabel = Instance.new("TextLabel")
+    successRateLabel.Size = UDim2.new(1, -10, 0, 15)
+    successRateLabel.Position = UDim2.new(0, 5, 0, 111)
+    successRateLabel.BackgroundTransparency = 1
+    successRateLabel.Text = string.format("Success: %d%%", shellInfo.successRate or 100)
+    successRateLabel.TextColor3 = Color3.fromRGB(100, 150, 100)
+    successRateLabel.TextScaled = true
+    successRateLabel.Font = Enum.Font.Gotham
+    successRateLabel.Parent = cardFrame
+    
+    -- 时间信息
+    local timeLabel = Instance.new("TextLabel")
+    timeLabel.Size = UDim2.new(1, -10, 0, 15)
+    timeLabel.Position = UDim2.new(0, 5, 0, 126)
+    timeLabel.BackgroundTransparency = 1
+    local timeText = ""
+    if shellInfo.assemblyTime then
+        if shellInfo.assemblyTime < 60 then
+            timeText = string.format("Time: %.1fs", shellInfo.assemblyTime)
+        else
+            timeText = string.format("Time: %.1fm", shellInfo.assemblyTime / 60)
+        end
+    end
+    timeLabel.Text = timeText
+    timeLabel.TextColor3 = Color3.fromRGB(100, 100, 150)
+    timeLabel.TextScaled = true
+    timeLabel.Font = Enum.Font.Gotham
+    timeLabel.Parent = cardFrame
+    
+    -- 输出机器人信息（压缩显示）
     local outputFrame = Instance.new("Frame")
-    outputFrame.Size = UDim2.new(1, -10, 1, -115)
-    outputFrame.Position = UDim2.new(0, 5, 0, 115)
+    outputFrame.Size = UDim2.new(1, -10, 1, -145)
+    outputFrame.Position = UDim2.new(0, 5, 0, 145)
     outputFrame.BackgroundTransparency = 1
     outputFrame.Parent = cardFrame
     
     local outputLayout = Instance.new("UIListLayout")
-    outputLayout.Padding = UDim.new(0, 2)
+    outputLayout.Padding = UDim.new(0, 1)
     outputLayout.SortOrder = Enum.SortOrder.LayoutOrder
     outputLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     outputLayout.Parent = outputFrame
     
-    -- 显示输出机器人
+    -- 显示输出机器人（只显示前3个）
     for i, output in ipairs(shellInfo.outputs) do
-        local outputLabel = Instance.new("TextLabel")
-        outputLabel.Size = UDim2.new(1, 0, 0, 15)
-        outputLabel.BackgroundTransparency = 1
-        outputLabel.Text = string.format("%s (%d%%)", output.robotId:gsub("_", " "), output.chance)
-        outputLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-        outputLabel.TextScaled = true
-        outputLabel.Font = Enum.Font.Gotham
-        outputLabel.LayoutOrder = i
-        outputLabel.Parent = outputFrame
+        if i <= 3 then
+            local outputLabel = Instance.new("TextLabel")
+            outputLabel.Size = UDim2.new(1, 0, 0, 12)
+            outputLabel.BackgroundTransparency = 1
+            outputLabel.Text = string.format("%s (%d%%)", output.robotId:gsub("_", " "), output.chance)
+            outputLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+            outputLabel.TextScaled = true
+            outputLabel.Font = Enum.Font.Gotham
+            outputLabel.LayoutOrder = i
+            outputLabel.Parent = outputFrame
+        elseif i == 4 then
+            local moreLabel = Instance.new("TextLabel")
+            moreLabel.Size = UDim2.new(1, 0, 0, 12)
+            moreLabel.BackgroundTransparency = 1
+            moreLabel.Text = "..."
+            moreLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+            moreLabel.TextScaled = true
+            moreLabel.Font = Enum.Font.Gotham
+            moreLabel.LayoutOrder = 4
+            moreLabel.Parent = outputFrame
+            break
+        end
     end
     
-    -- 如果没有库存，使卡片变灰
-    if availableCount <= 0 then
+    -- 检查玩家是否有足够的Scrap
+    local hasEnoughScrap = true
+    if playerData and shellInfo.scrapCost then
+        local currentScrap = playerData.Scrap or 0
+        hasEnoughScrap = currentScrap >= shellInfo.scrapCost
+    end
+    
+    -- 如果没有库存或Scrap不足，使卡片变灰
+    if availableCount <= 0 or not hasEnoughScrap then
         cardFrame.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
         iconLabel.ImageTransparency = 0.5
         nameLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+        if not hasEnoughScrap then
+            scrapCostLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
+        end
     end
     
-    return cardFrame, availableCount
+    return cardFrame, availableCount, hasEnoughScrap
 end
 
 --------------------------------------------------------------------
@@ -415,6 +511,7 @@ local function showAssemblerUI(assemblerModel)
                 
                 if ok then
                     -- 成功后更新UI
+                    task.wait(1)
                     updateAssemblerUI()
                 end
             end
@@ -459,9 +556,17 @@ function hideAssemblerUI()
 end
 
 -- 选择Shell
-function selectShell(shellInfo, availableCount)
+function selectShell(shellInfo, availableCount, hasEnoughScrap)
     if availableCount <= 0 then
         assemblerUI.selectedInfoLabel.Text = "No shells available!"
+        assemblerUI.selectedInfoLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
+        task.wait(1)
+        assemblerUI.selectedInfoLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+        return
+    end
+    
+    if not hasEnoughScrap then
+        assemblerUI.selectedInfoLabel.Text = string.format("Need %d Scrap!", shellInfo.scrapCost or 0)
         assemblerUI.selectedInfoLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
         task.wait(1)
         assemblerUI.selectedInfoLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
@@ -496,10 +601,14 @@ function updateAssemblerUI()
         local speed = upgradeInfo.speed or 1
         local nextSpeed = upgradeInfo.nextSpeed or speed
         
-        -- 更新升级信息
-        if nextSpeed > speed then
-            assemblerUI.upgradeInfoLabel.Text = string.format("Assembler Lv.%d → Lv.%d (Speed: %d → %d)", 
-                level, level + 1, speed, nextSpeed)
+        -- 更新升级信息（显示队列上限而不是速度）
+        local queueLimits = {1, 5, 12, 25, 40, 60, 90, 130, 190, 250}
+        local currentQueue = queueLimits[level] or 1
+        local nextQueue = queueLimits[level + 1] or currentQueue
+        
+        if nextQueue > currentQueue then
+            assemblerUI.upgradeInfoLabel.Text = string.format("Assembler Lv.%d → Lv.%d (Queue: %d → %d)", 
+                level, level + 1, currentQueue, nextQueue)
             
             local upgradeCost = level * 500
             assemblerUI.upgradeButton.Text = string.format("Upgrade (%d¢)", upgradeCost)
@@ -511,7 +620,7 @@ function updateAssemblerUI()
                 assemblerUI.upgradeButton.Text = "Need Credits"
             end
         else
-            assemblerUI.upgradeInfoLabel.Text = string.format("Max Level! (Lv.%d Speed: %d)", level, speed)
+            assemblerUI.upgradeInfoLabel.Text = string.format("Max Level! (Lv.%d Queue: %d)", level, currentQueue)
             assemblerUI.upgradeButton.Text = "Max Level"
             assemblerUI.upgradeButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
         end
@@ -524,11 +633,11 @@ function updateAssemblerUI()
         
         -- 创建Shell卡片
         for _, shellInfo in ipairs(SHELL_TO_ROBOT) do
-            local card, availableCount = createShellCard(shellInfo, assemblerUI.shellGridFrame, inventory)
+            local card, availableCount, hasEnoughScrap = createShellCard(shellInfo, assemblerUI.shellGridFrame, inventory, playerData)
             assemblerUI.shellCards[shellInfo.shellId] = card
             
             card.MouseButton1Click:Connect(function()
-                selectShell(shellInfo, availableCount)
+                selectShell(shellInfo, availableCount, hasEnoughScrap)
                 
                 -- 视觉反馈
                 for _, otherCard in pairs(assemblerUI.shellCards) do
@@ -538,7 +647,7 @@ function updateAssemblerUI()
                     end
                 end
                 
-                if availableCount > 0 then
+                if availableCount > 0 and hasEnoughScrap then
                     card.BorderColor3 = Color3.fromRGB(100, 180, 255)
                     card.BackgroundColor3 = Color3.fromRGB(240, 250, 255)
                 end
@@ -577,6 +686,14 @@ function performAssemble()
     
     -- 发送组装请求
     assembleShellEvent:FireServer(selectedShell.shellId, quantity)
+    
+    -- 通知教程系统组装器交互完成
+    if tutorialEvent then
+        tutorialEvent:FireServer("STEP_COMPLETED", "USE_ASSEMBLER", {
+            machineType = "Assembler",
+            shellType = selectedShell.shellId
+        })
+    end
     
     -- 重置输入和按钮
     assemblerUI.quantityInput.Text = "1"
@@ -640,7 +757,7 @@ local function setupAssemblerInteractions()
                 local existingPrompt = targetPart:FindFirstChild("ProximityPrompt")
                 if not existingPrompt then
                     local prompt = Instance.new("ProximityPrompt")
-                    prompt.ObjectText = "Assembler"
+                    prompt.ObjectText = "Shell Assembler"
                     prompt.ActionText = "打开"
                     prompt.HoldDuration = 0.5
                     prompt.MaxActivationDistance = 10
@@ -676,7 +793,7 @@ workspace.ChildAdded:Connect(function(child)
         
         if targetPart then
             local prompt = Instance.new("ProximityPrompt")
-            prompt.ObjectText = "Assembler"
+            prompt.ObjectText = "Shell Assembler"
             prompt.ActionText = "打开"
             prompt.HoldDuration = 0.5
             prompt.MaxActivationDistance = 10
@@ -714,4 +831,4 @@ end)
 
 setupAssemblerInteractions()
 
-print("[AssemblerUI] Assembler UI系统已加载")
+print("[AssemblerUI] Shell Assembler UI系统已加载")

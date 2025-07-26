@@ -90,32 +90,27 @@ local function hideShop()
     end)
 end
 
--- 获取机器模型 (从ServerStorage/MachineModel)
+-- 等待RemoteFunction
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local remoteFolder = ReplicatedStorage:WaitForChild("RemoteEvents")
+local getMachineModelFunction = remoteFolder:WaitForChild("GetMachineModelFunction")
+local placeBuildingEvent = remoteFolder:WaitForChild("PlaceBuildingEvent")
+
+-- 获取机器模型 (通过服务器)
 local function getMachineModel(buildingId)
-    print("[BuildingShopUI] 寻找机器模型:", buildingId)
+    print("[BuildingShopUI] 请求机器模型:", buildingId)
     
-    -- 从ServerStorage/MachineModel获取正确的模型模板  
-    local ServerStorage = game:GetService("ServerStorage")
-    local MachineModel = ServerStorage:FindFirstChild("MachineModel")
+    local success, result = pcall(function()
+        return getMachineModelFunction:InvokeServer(buildingId)
+    end)
     
-    if MachineModel then
-        local originalModel = MachineModel:FindFirstChild(buildingId)
-        if originalModel then
-            print("[BuildingShopUI] 从ServerStorage/MachineModel找到模型:", buildingId)
-            return originalModel:Clone()
-        else
-            print("[BuildingShopUI] ServerStorage/MachineModel中没有找到:", buildingId)
-            print("[BuildingShopUI] 可用的模型:")
-            for _, child in pairs(MachineModel:GetChildren()) do
-                print("  -", child.Name)
-            end
-        end
+    if success and result then
+        print("[BuildingShopUI] 从服务器获得模型:", buildingId)
+        return result:Clone() -- 服务器返回的是模型，客户端克隆
     else
-        warn("[BuildingShopUI] ServerStorage/MachineModel 文件夹不存在")
+        warn("[BuildingShopUI] 无法从服务器获取模型:", buildingId)
+        return nil
     end
-    
-    warn("[BuildingShopUI] 找不到机器模型:", buildingId)
-    return nil
 end
 
 -- 创建虚影模型 (提前定义)
@@ -219,27 +214,28 @@ local function startPlacementMode()
     -- 创建虚影
     ghostModel = createGhostModel(selectedBuilding)
     
-    -- 更新虚影位置的连接 (限制在地面)
+    -- 更新虚影位置的连接 (限制在地面) - 针对Model+MeshPart结构
     placementConnection = RunService.Heartbeat:Connect(function()
         if ghostModel and mouse.Hit then
             local targetPosition = mouse.Hit.Position
             
-            -- 对于Model，设置PrimaryPart位置
+            -- 针对Model+MeshPart结构的移动
             if ghostModel:IsA("Model") then
-                if ghostModel.PrimaryPart then
-                    ghostModel:SetPrimaryPartCFrame(CFrame.new(targetPosition.X, 0, targetPosition.Z))
-                else
-                    -- 如果没有PrimaryPart，移动所有BasePart
-                    local currentCenter = ghostModel:GetModelCFrame().Position
-                    for _, part in pairs(ghostModel:GetChildren()) do
-                        if part:IsA("BasePart") then
-                            local offset = part.Position - currentCenter
-                            part.Position = Vector3.new(targetPosition.X, 0, targetPosition.Z) + offset
-                        end
+                -- 找到Model中的MeshPart
+                local meshPart = nil
+                for _, child in pairs(ghostModel:GetChildren()) do
+                    if child:IsA("MeshPart") or child:IsA("Part") then
+                        meshPart = child
+                        break
                     end
                 end
-            else
-                -- 对于单个Part
+                
+                if meshPart then
+                    -- 直接移动MeshPart，让它贴地
+                    local meshSize = meshPart.Size
+                    meshPart.Position = Vector3.new(targetPosition.X, meshSize.Y/2, targetPosition.Z)
+                end
+            elseif ghostModel:IsA("Part") or ghostModel:IsA("MeshPart") then
                 ghostModel.Position = Vector3.new(targetPosition.X, ghostModel.Size.Y/2, targetPosition.Z)
             end
         end
@@ -478,6 +474,14 @@ end
 local function showShop()
     print("[BuildingShopUI] 显示建筑商店界面")
     
+    -- 通知教程系统商店已打开
+    local tutorialEvent = remoteFolder:FindFirstChild("TutorialEvent")
+    if tutorialEvent then
+        tutorialEvent:FireServer("STEP_COMPLETED", "OPEN_SHOP", {
+            target = "BuildingShopButton"
+        })
+    end
+    
     if not buildingShopUI then
         print("[BuildingShopUI] 创建新的建筑商店UI")
         local ui, background, mainFrame, closeButton, contentFrame = createBuildingShopUI()
@@ -564,67 +568,40 @@ end
 local function placeBuilding()
     if not isPlacingMode or not selectedBuilding or not ghostModel then return end
     
-    local ghostPosition = ghostModel:IsA("Model") and ghostModel:GetModelCFrame().Position or ghostModel.Position
+    -- 获取虚影当前位置 - 针对Model+MeshPart结构
+    local ghostPosition
+    if ghostModel:IsA("Model") then
+        -- 找到Model中的MeshPart或Part
+        for _, child in pairs(ghostModel:GetChildren()) do
+            if child:IsA("MeshPart") or child:IsA("Part") then
+                ghostPosition = child.Position
+                break
+            end
+        end
+    else
+        ghostPosition = ghostModel.Position
+    end
     print("[BuildingShopUI] 放置建筑:", selectedBuilding.name, "在位置:", ghostPosition)
     
-    -- 获取真实机器模型
-    local realMachine = getMachineModel(selectedBuilding.id)
+    -- 发送放置请求到服务器
+    print("[BuildingShopUI] 发送放置请求到服务器:", selectedBuilding.id, "位置:", ghostPosition)
     
-    if realMachine then
-        print("[BuildingShopUI] 放置真实机器模型:", selectedBuilding.id)
+    local success = pcall(function()
+        placeBuildingEvent:FireServer(selectedBuilding.id, ghostPosition)
+    end)
+    
+    if success then
+        print("[BuildingShopUI] 放置请求已发送")
         
-        -- 设置机器为正常状态
-        local function setNormalProperties(obj)
-            if obj:IsA("BasePart") then
-                obj.Transparency = 0
-                obj.CanCollide = true
-                obj.Anchored = true
-                -- 不强制改变颜色，保持原有颜色
-            end
-            for _, child in pairs(obj:GetChildren()) do
-                setNormalProperties(child)
-            end
+        -- 通知教程系统建筑已放置
+        local tutorialEvent = remoteFolder:FindFirstChild("TutorialEvent")
+        if tutorialEvent then
+            tutorialEvent:FireServer("STEP_COMPLETED", "PLACE_CRUSHER", {
+                buildingType = selectedBuilding.id
+            })
         end
-        
-        setNormalProperties(realMachine)
-        
-        -- 设置位置 - 确保贴地面
-        if realMachine:IsA("Model") then
-            -- 对于Model，确保底部贴地
-            if realMachine.PrimaryPart then
-                realMachine:SetPrimaryPartCFrame(CFrame.new(ghostPosition.X, 0, ghostPosition.Z))
-            else
-                -- 如果没有PrimaryPart，移动所有的BasePart
-                for _, part in pairs(realMachine:GetChildren()) do
-                    if part:IsA("BasePart") then
-                        local offset = part.Position - realMachine:GetModelCFrame().Position
-                        part.Position = Vector3.new(ghostPosition.X, 0, ghostPosition.Z) + offset
-                    end
-                end
-            end
-        else
-            -- 对于单个Part，底部贴地
-            realMachine.Position = Vector3.new(ghostPosition.X, realMachine.Size.Y/2, ghostPosition.Z)
-        end
-        
-        realMachine.Name = selectedBuilding.id .. "_" .. tick() -- 唯一名称
-        realMachine.Parent = workspace
-        
-        print("[BuildingShopUI] 真实建筑放置成功:", realMachine.Name)
     else
-        warn("[BuildingShopUI] 无法获取真实机器模型，使用备用方案")
-        -- 备用：放置简单模型，确保贴地
-        local building = Instance.new("Part")
-        building.Name = selectedBuilding.id .. "_" .. tick()
-        building.Size = Vector3.new(8, 8, 8)
-        building.Position = Vector3.new(ghostPosition.X, building.Size.Y/2, ghostPosition.Z) -- 贴地
-        building.Material = Enum.Material.SmoothPlastic
-        building.Color = selectedBuilding.color
-        building.CanCollide = true
-        building.Anchored = true
-        building.Parent = workspace
-        
-        print("[BuildingShopUI] 备用建筑放置成功:", building.Name)
+        warn("[BuildingShopUI] 发送放置请求失败")
     end
     
     stopPlacementMode()

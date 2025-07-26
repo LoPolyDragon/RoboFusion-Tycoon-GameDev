@@ -24,6 +24,9 @@ local reFolder = ReplicatedStorage:WaitForChild("RemoteEvents")
 local crushScrapEvent = reFolder:WaitForChild("CrushScrapEvent")
 local upgradeMachineEvent = reFolder:WaitForChild("UpgradeMachineEvent")
 
+-- 教程系统集成
+local tutorialEvent = reFolder:FindFirstChild("TutorialEvent")
+
 --------------------------------------------------------------------
 -- 创建Crusher UI
 --------------------------------------------------------------------
@@ -405,6 +408,14 @@ function performCrush()
     
     -- 发送粉碎请求
     crushScrapEvent:FireServer(amount)
+    
+    -- 通知教程系统收集废料任务进度
+    if tutorialEvent then
+        tutorialEvent:FireServer("STEP_COMPLETED", "COLLECT_SCRAP", {
+            target = "Scrap",
+            amount = amount
+        })
+    end
     
     -- 清空输入框
     crusherUI.amountInput.Text = ""

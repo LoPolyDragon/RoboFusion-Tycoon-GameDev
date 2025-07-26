@@ -13,7 +13,8 @@
     },
 
     "ServerStorage": {
-      "RobotTemplates": { "$path": "Shared/ServerStorage/RobotTemplates" }
+      "RobotTemplates": { "$path": "Shared/ServerStorage/RobotTemplates" },
+      "MachineModel": { "$path": "Shared/ServerStorage/MachineModel" }
     },
 
     "ServerScriptService": {

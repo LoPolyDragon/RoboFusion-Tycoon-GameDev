@@ -161,8 +161,8 @@ local function createEnergyStationUI()
     
     -- 升级按钮
     local upgradeButton = Instance.new("TextButton")
-    upgradeButton.Size = UDim2.new(0.8, 0, 0, 40)
-    upgradeButton.Position = UDim2.new(0.1, 0, 1, -50)
+    upgradeButton.Size = UDim2.new(0.8, 0, 0, 35)
+    upgradeButton.Position = UDim2.new(0.1, 0, 1, -85)
     upgradeButton.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
     upgradeButton.Text = "升级 (500 Credits)"
     upgradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -175,6 +175,23 @@ local function createEnergyStationUI()
     local upgradeCorner = Instance.new("UICorner")
     upgradeCorner.CornerRadius = UDim.new(0, 5)
     upgradeCorner.Parent = upgradeButton
+    
+    -- Credits充能按钮
+    local chargeButton = Instance.new("TextButton")
+    chargeButton.Size = UDim2.new(0.8, 0, 0, 35)
+    chargeButton.Position = UDim2.new(0.1, 0, 1, -45)
+    chargeButton.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+    chargeButton.Text = "Credits充能 (100:60)"
+    chargeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    chargeButton.TextScaled = true
+    chargeButton.Font = Enum.Font.GothamBold
+    chargeButton.BorderSizePixel = 0
+    chargeButton.Active = true
+    chargeButton.Parent = stationInfoFrame
+    
+    local chargeCorner = Instance.new("UICorner")
+    chargeCorner.CornerRadius = UDim.new(0, 5)
+    chargeCorner.Parent = chargeButton
     
     -- 右侧：机器人列表
     local robotListFrame = Instance.new("Frame")
@@ -214,7 +231,155 @@ local function createEnergyStationUI()
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Parent = scrollFrame
     
-    return screenGui, mainFrame, closeButton, levelLabel, rangeLabel, speedLabel, robotsLabel, upgradeButton, scrollFrame, listLayout
+    return screenGui, mainFrame, closeButton, levelLabel, rangeLabel, speedLabel, robotsLabel, upgradeButton, chargeButton, scrollFrame, listLayout
+end
+
+--------------------------------------------------------------------
+-- Credits充能对话框
+--------------------------------------------------------------------
+local function showChargeDialog()
+    -- 创建充能选择界面
+    local chargeGui = Instance.new("ScreenGui")
+    chargeGui.Name = "ChargeDialog"
+    chargeGui.ResetOnSpawn = false
+    chargeGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    chargeGui.Parent = playerGui
+    
+    -- 背景遮罩
+    local backdrop = Instance.new("Frame")
+    backdrop.Size = UDim2.new(1, 0, 1, 0)
+    backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    backdrop.BackgroundTransparency = 0.5
+    backdrop.BorderSizePixel = 0
+    backdrop.Parent = chargeGui
+    
+    -- 对话框框架
+    local dialogFrame = Instance.new("Frame")
+    dialogFrame.Size = UDim2.new(0, 400, 0, 300)
+    dialogFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+    dialogFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    dialogFrame.BorderSizePixel = 0
+    dialogFrame.Parent = chargeGui
+    
+    local dialogCorner = Instance.new("UICorner")
+    dialogCorner.CornerRadius = UDim.new(0, 10)
+    dialogCorner.Parent = dialogFrame
+    
+    -- 标题
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -20, 0, 40)
+    titleLabel.Position = UDim2.new(0, 10, 0, 10)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Credits充能服务"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextScaled = true
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Parent = dialogFrame
+    
+    -- 说明文本
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Size = UDim2.new(1, -20, 0, 60)
+    infoLabel.Position = UDim2.new(0, 10, 0, 60)
+    infoLabel.BackgroundTransparency = 1
+    infoLabel.Text = "选择一个机器人进行充能\n充能比率: 100 Credits = 60 能量"
+    infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    infoLabel.TextScaled = true
+    infoLabel.Font = Enum.Font.Gotham
+    infoLabel.Parent = dialogFrame
+    
+    -- 机器人选择列表
+    local robotScrollFrame = Instance.new("ScrollingFrame")
+    robotScrollFrame.Size = UDim2.new(1, -20, 1, -180)
+    robotScrollFrame.Position = UDim2.new(0, 10, 0, 130)
+    robotScrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    robotScrollFrame.ScrollBarThickness = 6
+    robotScrollFrame.BorderSizePixel = 0
+    robotScrollFrame.Parent = dialogFrame
+    
+    local robotScrollCorner = Instance.new("UICorner")
+    robotScrollCorner.CornerRadius = UDim.new(0, 5)
+    robotScrollCorner.Parent = robotScrollFrame
+    
+    local robotListLayout = Instance.new("UIListLayout")
+    robotListLayout.Padding = UDim.new(0, 2)
+    robotListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    robotListLayout.Parent = robotScrollFrame
+    
+    -- 关闭按钮
+    local closeChargeButton = Instance.new("TextButton")
+    closeChargeButton.Size = UDim2.new(0, 100, 0, 35)
+    closeChargeButton.Position = UDim2.new(0.5, -50, 1, -45)
+    closeChargeButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+    closeChargeButton.Text = "关闭"
+    closeChargeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeChargeButton.TextScaled = true
+    closeChargeButton.Font = Enum.Font.GothamBold
+    closeChargeButton.BorderSizePixel = 0
+    closeChargeButton.Active = true
+    closeChargeButton.Parent = dialogFrame
+    
+    local closeChargeCorner = Instance.new("UICorner")
+    closeChargeCorner.CornerRadius = UDim.new(0, 5)
+    closeChargeCorner.Parent = closeChargeButton
+    
+    -- 填充机器人列表
+    local robotsInRange = {}
+    local stationPos = currentStation.PrimaryPart and currentStation.PrimaryPart.Position or Vector3.new(0, 0, 0)
+    local range = currentStation:GetAttribute("Range") or 20
+    
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Model") and (obj:GetAttribute("Type") == "Robot" or obj:GetAttribute("RobotType")) then
+            local robotPos = obj.PrimaryPart and obj.PrimaryPart.Position
+            if robotPos and (robotPos - stationPos).Magnitude <= range then
+                local energy = obj:GetAttribute("Energy") or 0
+                local maxEnergy = obj:GetAttribute("MaxEnergy") or 60
+                table.insert(robotsInRange, { model = obj, energy = energy, maxEnergy = maxEnergy })
+            end
+        end
+    end
+    
+    for i, robotData in ipairs(robotsInRange) do
+        local robotButton = Instance.new("TextButton")
+        robotButton.Size = UDim2.new(1, -10, 0, 50)
+        robotButton.Position = UDim2.new(0, 5, 0, 0)
+        robotButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        robotButton.Text = string.format("%s\n能量: %.0f/%.0f", robotData.model.Name, robotData.energy, robotData.maxEnergy)
+        robotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        robotButton.TextScaled = true
+        robotButton.Font = Enum.Font.Gotham
+        robotButton.BorderSizePixel = 0
+        robotButton.LayoutOrder = i
+        robotButton.Parent = robotScrollFrame
+        
+        local robotButtonCorner = Instance.new("UICorner")
+        robotButtonCorner.CornerRadius = UDim.new(0, 3)
+        robotButtonCorner.Parent = robotButton
+        
+        -- 如果能量已满，禁用按钮
+        if robotData.energy >= robotData.maxEnergy then
+            robotButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+            robotButton.Text = robotButton.Text .. "\n(已满能量)"
+        else
+            robotButton.MouseButton1Click:Connect(function()
+                -- 充满该机器人
+                local neededEnergy = robotData.maxEnergy - robotData.energy
+                energyStationEvent:FireServer("CHARGE_ROBOT", currentStation, robotData.model, neededEnergy)
+                chargeGui:Destroy()
+            end)
+        end
+    end
+    
+    -- 更新滚动区域大小
+    robotScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #robotsInRange * 52)
+    
+    -- 关闭对话框事件
+    closeChargeButton.MouseButton1Click:Connect(function()
+        chargeGui:Destroy()
+    end)
+    
+    backdrop.MouseButton1Click:Connect(function()
+        chargeGui:Destroy()
+    end)
 end
 
 --------------------------------------------------------------------
@@ -295,7 +460,7 @@ local currentStation = nil
 -- 显示能量站UI
 local function showEnergyStationUI(stationModel)
     if not energyStationUI then
-        local ui, mainFrame, closeButton, levelLabel, rangeLabel, speedLabel, robotsLabel, upgradeButton, scrollFrame, listLayout = createEnergyStationUI()
+        local ui, mainFrame, closeButton, levelLabel, rangeLabel, speedLabel, robotsLabel, upgradeButton, chargeButton, scrollFrame, listLayout = createEnergyStationUI()
         energyStationUI = {
             gui = ui,
             mainFrame = mainFrame,
@@ -305,6 +470,7 @@ local function showEnergyStationUI(stationModel)
             speedLabel = speedLabel,
             robotsLabel = robotsLabel,
             upgradeButton = upgradeButton,
+            chargeButton = chargeButton,
             scrollFrame = scrollFrame,
             listLayout = listLayout
         }
@@ -318,6 +484,13 @@ local function showEnergyStationUI(stationModel)
         upgradeButton.MouseButton1Click:Connect(function()
             if currentStation then
                 energyStationEvent:FireServer("UPGRADE_STATION", currentStation)
+            end
+        end)
+        
+        -- Credits充能按钮事件
+        chargeButton.MouseButton1Click:Connect(function()
+            if currentStation then
+                showChargeDialog()
             end
         end)
     end
@@ -363,8 +536,16 @@ end
 function updateEnergyStationUI()
     if not energyStationUI or not currentStation then return end
     
-    -- 获取能量站属性
-    local level = currentStation:GetAttribute("Level") or 1
+    -- 获取能量站属性，并设置默认值如果不存在
+    local level = currentStation:GetAttribute("Level")
+    if not level then
+        level = 1
+        currentStation:SetAttribute("Level", level)
+        currentStation:SetAttribute("Type", "EnergyStation")
+        currentStation:SetAttribute("Range", 20)
+        currentStation:SetAttribute("ChargeRate", 0.2)
+    end
+    
     local range = currentStation:GetAttribute("Range") or 20
     local chargeRate = currentStation:GetAttribute("ChargeRate") or 0.2
     
@@ -496,10 +677,27 @@ end
 --------------------------------------------------------------------
 -- 能量站交互设置
 --------------------------------------------------------------------
+-- 检查是否是能量站的函数
+local function isEnergyStation(obj)
+    if not obj:IsA("Model") then return false end
+    
+    -- 检查属性
+    if obj:GetAttribute("Type") == "EnergyStation" then
+        return true
+    end
+    
+    -- 检查名称 (建筑商店放置的可能叫EnergyMachine_xxx)
+    if obj.Name:find("EnergyMachine") then
+        return true
+    end
+    
+    return false
+end
+
 -- 为现有能量站添加交互提示
 local function setupEnergyStationInteractions()
     for _, obj in pairs(workspace:GetChildren()) do
-        if obj:IsA("Model") and obj:GetAttribute("Type") == "EnergyStation" then
+        if isEnergyStation(obj) then
             -- 查找合适的Part来添加ProximityPrompt
             local targetPart = obj.PrimaryPart
             if not targetPart then
@@ -540,7 +738,7 @@ end
 
 -- 监听新的能量站
 workspace.ChildAdded:Connect(function(child)
-    if child:IsA("Model") and child:GetAttribute("Type") == "EnergyStation" then
+    if isEnergyStation(child) then
         task.wait(0.1) -- 等待属性设置
         
         -- 查找合适的Part来添加ProximityPrompt
@@ -591,6 +789,31 @@ task.spawn(function()
         task.wait(1)
         if energyStationUI and energyStationUI.mainFrame.Visible then
             updateEnergyStationUI()
+        end
+    end
+end)
+
+-- 处理服务器端能量站事件结果
+energyStationEvent.OnClientEvent:Connect(function(action, success, message)
+    if action == "CHARGE_RESULT" then
+        if success then
+            print("[EnergyStationUI] 充能成功:", message)
+            -- 更新UI
+            if energyStationUI and energyStationUI.mainFrame.Visible then
+                updateEnergyStationUI()
+            end
+        else
+            warn("[EnergyStationUI] 充能失败:", message)
+        end
+    elseif action == "UPGRADE_RESULT" then
+        if success then
+            print("[EnergyStationUI] 升级成功:", message)
+            -- 更新UI
+            if energyStationUI and energyStationUI.mainFrame.Visible then
+                updateEnergyStationUI()
+            end
+        else
+            warn("[EnergyStationUI] 升级失败:", message)
         end
     end
 end)

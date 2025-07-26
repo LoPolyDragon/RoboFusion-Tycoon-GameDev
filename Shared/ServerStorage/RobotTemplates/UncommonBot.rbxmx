@@ -2,7 +2,7 @@
 	<Meta name="ExplicitAutoJoints">true</Meta>
 	<External>null</External>
 	<External>nil</External>
-	<Item class="Model" referent="RBXcf93281e79b347b186aa704175c627ef">
+	<Item class="Model" referent="RBX198cac5d3da54f0589782b9d8e086159">
 		<Properties>
 			<BinaryString name="AttributesSerialize"></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
@@ -52,7 +52,7 @@
 				</CFrame>
 			</OptionalCoordinateFrame>
 		</Properties>
-		<Item class="Humanoid" referent="RBX3eae4089bb66486b9ff93e5a285ff6ff">
+		<Item class="Humanoid" referent="RBXc66488083d444f94be04e07f22543b8d">
 			<Properties>
 				<BinaryString name="AttributesSerialize"></BinaryString>
 				<bool name="AutoJumpEnabled">true</bool>
@@ -90,7 +90,7 @@
 				<float name="WalkSpeed">16</float>
 			</Properties>
 		</Item>
-		<Item class="MeshPart" referent="RBXbab65259ec0349608cda7fec525434f0">
+		<Item class="MeshPart" referent="RBX116d518587f849d79ff445512b3c408c">
 			<Properties>
 				<SharedString name="AeroMeshData">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
 				<bool name="Anchored">false</bool>

@@ -176,6 +176,18 @@ end
 local function giveOutputItems(player, recipe)
 	for item, amount in pairs(recipe.output) do
 		GameLogic.AddItem(player, item, amount)
+		
+		-- 更新Tier制作进度
+		local craftingItems = {"IronBar", "BronzeGear", "GoldPlatedEdge"}
+		for _, craftItem in ipairs(craftingItems) do
+			if item == craftItem then
+				-- 通过GameLogic调用TierManager
+				if GameLogic.UpdateCraftingProgress then
+					GameLogic.UpdateCraftingProgress(player, item, amount)
+				end
+				break
+			end
+		end
 	end
 end
 
