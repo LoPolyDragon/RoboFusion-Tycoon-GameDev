@@ -23,6 +23,7 @@ local skipMissedDayEvent = reFolder:WaitForChild("SkipMissedDayEvent")
 
 -- 加载配置
 local GameConstants = require(ReplicatedStorage.SharedModules.GameConstants.main)
+local IconUtils = require(ReplicatedStorage.ClientUtils.IconUtils)
 local DAILY_REWARDS = GameConstants.DAILY_REWARDS
 
 --------------------------------------------------------------------
@@ -103,20 +104,19 @@ local function createDailySignInUI()
     todayRewardLabel.TextXAlignment = Enum.TextXAlignment.Left
     todayRewardLabel.Parent = rewardFrame
     
-    local rewardIconLabel = Instance.new("TextLabel")
-    rewardIconLabel.Size = UDim2.new(0, 80, 0, 80)
-    rewardIconLabel.Position = UDim2.new(0, 10, 0, 55)
-    rewardIconLabel.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-    rewardIconLabel.Text = "📦"
-    rewardIconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    rewardIconLabel.TextScaled = true
-    rewardIconLabel.Font = Enum.Font.GothamBold
-    rewardIconLabel.BorderSizePixel = 0
-    rewardIconLabel.Parent = rewardFrame
+    -- 更改为ImageLabel而非TextLabel来显示图标
+    local rewardIconImage = Instance.new("ImageLabel")
+    rewardIconImage.Size = UDim2.new(0, 80, 0, 80)
+    rewardIconImage.Position = UDim2.new(0, 10, 0, 55)
+    rewardIconImage.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    rewardIconImage.Image = IconUtils.getItemIcon("_default") -- 默认图标
+    rewardIconImage.ScaleType = Enum.ScaleType.Fit
+    rewardIconImage.BorderSizePixel = 0
+    rewardIconImage.Parent = rewardFrame
     
     local rewardIconCorner = Instance.new("UICorner")
     rewardIconCorner.CornerRadius = UDim.new(0, 10)
-    rewardIconCorner.Parent = rewardIconLabel
+    rewardIconCorner.Parent = rewardIconImage
     
     local rewardDescLabel = Instance.new("TextLabel")
     rewardDescLabel.Size = UDim2.new(1, -110, 0, 80)
@@ -206,7 +206,7 @@ local function createDailySignInUI()
         backdrop = backdrop,
         mainFrame = mainFrame,
         titleLabel = titleLabel,
-        rewardIconLabel = rewardIconLabel,
+        rewardIconImage = rewardIconImage, -- 改为ImageLabel
         rewardDescLabel = rewardDescLabel,
         streakLabel = streakLabel,
         signInButton = signInButton,
@@ -220,7 +220,7 @@ end
 --------------------------------------------------------------------
 local function getRewardInfo(dayIndex, isVIP)
     if dayIndex < 1 or dayIndex > #DAILY_REWARDS then
-        return "未知奖励", "📦"
+        return "未知奖励", "_default"
     end
     
     local reward = DAILY_REWARDS[dayIndex]
@@ -229,24 +229,13 @@ local function getRewardInfo(dayIndex, isVIP)
     
     -- VIP第8天特殊奖励
     if dayIndex == 8 and isVIP then
-        return "BronzePick x1 (VIP奖励)", "⛏️"
+        return "BronzePick x1 (VIP奖励)", "BronzePick"
     end
     
-    -- 图标映射
-    local iconMap = {
-        Scrap = "🔩",
-        Credits = "💰",
-        RustyShell = "🥚",
-        WoodPick = "⛏️",
-        TitaniumOre = "💎",
-        EnergyCoreS = "⚡",
-        NeonCoreShell = "✨"
-    }
-    
-    local icon = iconMap[rewardType] or "📦"
+    -- 直接返回奖励类型作为图标ID
     local description = string.format("%s x%d", rewardType, amount)
     
-    return description, icon
+    return description, rewardType
 end
 
 --------------------------------------------------------------------
@@ -276,15 +265,17 @@ local function showDailySignInUI(dayIndex, isVIP)
             hideDailySignInUI()
         end)
         
-        -- 背景点击关闭
-        dailySignInUI.backdrop.MouseButton1Click:Connect(function()
-            hideDailySignInUI()
+        -- 背景点击关闭 - 使用Activated事件而不是MouseButton1Click
+        dailySignInUI.backdrop.InputBegan:Connect(function(input, gameProcessed)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 and not gameProcessed then
+                hideDailySignInUI()
+            end
         end)
     end
     
     -- 更新UI内容
-    local rewardDesc, rewardIcon = getRewardInfo(dayIndex, isVIP or false)
-    dailySignInUI.rewardIconLabel.Text = rewardIcon
+    local rewardDesc, iconId = getRewardInfo(dayIndex, isVIP or false)
+    dailySignInUI.rewardIconImage.Image = IconUtils.getItemIcon(iconId)
     dailySignInUI.rewardDescLabel.Text = rewardDesc
     dailySignInUI.streakLabel.Text = string.format("连续签到: %d 天", dayIndex)
     
@@ -307,7 +298,7 @@ local function showDailySignInUI(dayIndex, isVIP)
     tween:Play()
     
     -- 奖励图标动画
-    local iconTween = TweenService:Create(dailySignInUI.rewardIconLabel,
+    local iconTween = TweenService:Create(dailySignInUI.rewardIconImage,
         TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out),
         {
             Rotation = 360
@@ -316,7 +307,7 @@ local function showDailySignInUI(dayIndex, isVIP)
     iconTween:Play()
     
     iconTween.Completed:Connect(function()
-        dailySignInUI.rewardIconLabel.Rotation = 0
+        dailySignInUI.rewardIconImage.Rotation = 0
     end)
 end
 

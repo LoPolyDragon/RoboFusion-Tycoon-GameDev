@@ -7,7 +7,8 @@ local SS = game:GetService("ServerStorage")
 local RunService = game:GetService("RunService")
 local PhysicsService = game:GetService("PhysicsService")
 
-local EVT = RS.RemoteEvents:WaitForChild("RobotToggleEvent")
+local EVT = RS:FindFirstChild("RobotToggleEvent") or Instance.new("RemoteEvent", RS)
+EVT.Name = "RobotToggleEvent"
 local TPL = SS:WaitForChild("RobotTemplates") -- 模板：UncommonBot 等
 
 --------------------------------------------------------------------
@@ -86,6 +87,15 @@ local function spawn(plr, botId)
 	if #Active[plr] >= 5 then
 		return
 	end
+	
+	-- 检查是否已经存在相同的机器人
+	for _, rec in ipairs(Active[plr]) do
+		if rec.id == botId then
+			print("[RobotActiveManager] 机器人已存在:", botId)
+			return
+		end
+	end
+	
 	local tpl = TPL:FindFirstChild(templateFor(botId))
 	if not tpl then
 		warn("缺模板", botId)
@@ -95,6 +105,7 @@ local function spawn(plr, botId)
 	local model = tpl:Clone()
 	applyBotGroup(model)
 	model:SetAttribute("BotId", botId)
+	model:SetAttribute("Owner", plr.UserId)
 
 	local slot = #Active[plr] + 1
 	local chrR = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
@@ -105,22 +116,34 @@ local function spawn(plr, botId)
 
 	table.insert(Active[plr], { id = botId, model = model, slot = slot })
 	follow(plr, model, slot)
+	print("[RobotActiveManager] 机器人已激活:", botId, "槽位:", slot)
 end
 
 local function remove(plr, botId)
 	local list = Active[plr]
 	if not list then
+		print("[RobotActiveManager] 玩家无激活机器人列表:", plr.Name)
 		return
 	end
+	
+	local found = false
 	for i, rec in ipairs(list) do
 		if rec.id == botId then
+			print("[RobotActiveManager] 移除机器人:", botId, "玩家:", plr.Name)
 			if rec.model and rec.model.Parent then
 				rec.model:Destroy()
+				print("[RobotActiveManager] 机器人模型已销毁")
 			end
 			table.remove(list, i)
+			found = true
 			break
 		end
 	end
+	
+	if not found then
+		print("[RobotActiveManager] 未找到要移除的机器人:", botId)
+	end
+	
 	-- 重新排位
 	local chrR = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
 	for idx, rec in ipairs(list) do
@@ -129,6 +152,8 @@ local function remove(plr, botId)
 			rec.model:PivotTo(CFrame.new(targetPos(chrR, idx)))
 		end
 	end
+	
+	print("[RobotActiveManager] 当前激活机器人数量:", #list)
 end
 
 --------------------------------------------------------------------
@@ -161,4 +186,28 @@ local M = {}
 function M.GetActiveList(plr)
 	return Active[plr] or {}
 end
+
+-- 直接移除机器人（供其他系统调用）
+function M.RemoveRobot(plr, botId)
+	print("[RobotActiveManager] API调用移除机器人:", botId, "玩家:", plr.Name)
+	remove(plr, botId)
+end
+
+-- 直接激活机器人（供其他系统调用）
+function M.SpawnRobot(plr, botId)
+	print("[RobotActiveManager] API调用激活机器人:", botId, "玩家:", plr.Name)
+	spawn(plr, botId)
+end
+
+-- 检查机器人是否已激活
+function M.IsRobotActive(plr, botId)
+	local list = Active[plr] or {}
+	for _, rec in ipairs(list) do
+		if rec.id == botId then
+			return true, rec
+		end
+	end
+	return false, nil
+end
+
 return M

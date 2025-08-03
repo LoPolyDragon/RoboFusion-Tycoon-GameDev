@@ -365,4 +365,366 @@ C.ENERGY_STATIONS = {
 	[5] = { range = 40, chargeMultiplier = 2.0 },   -- Level 5: 范围40，速度2.0x
 }
 
+--------------------------------------------------------------------
+-- 机器冷却时间配置 (秒)
+--------------------------------------------------------------------
+C.MACHINE_COOLDOWNS = {
+	-- 基础机器冷却时间
+	Crusher = {
+		[1] = 5,   -- 1级: 5秒
+		[2] = 4,   -- 2级: 4秒  
+		[3] = 3,   -- 3级: 3秒
+		[4] = 2.5, -- 4级: 2.5秒
+		[5] = 2,   -- 5级: 2秒
+		[6] = 1.8, -- 6级: 1.8秒
+		[7] = 1.6, -- 7级: 1.6秒
+		[8] = 1.4, -- 8级: 1.4秒
+		[9] = 1.2, -- 9级: 1.2秒
+		[10] = 1   -- 10级: 1秒
+	},
+	Generator = {
+		[1] = 8,   -- 1级: 8秒
+		[2] = 7,   -- 2级: 7秒
+		[3] = 6,   -- 3级: 6秒
+		[4] = 5.5, -- 4级: 5.5秒
+		[5] = 5,   -- 5级: 5秒
+		[6] = 4.5, -- 6级: 4.5秒
+		[7] = 4,   -- 7级: 4秒
+		[8] = 3.5, -- 8级: 3.5秒
+		[9] = 3,   -- 9级: 3秒
+		[10] = 2.5 -- 10级: 2.5秒
+	},
+	Assembler = {
+		[1] = 10,  -- 1级: 10秒
+		[2] = 9,   -- 2级: 9秒
+		[3] = 8,   -- 3级: 8秒
+		[4] = 7.5, -- 4级: 7.5秒
+		[5] = 7,   -- 5级: 7秒
+		[6] = 6.5, -- 6级: 6.5秒
+		[7] = 6,   -- 7级: 6秒
+		[8] = 5.5, -- 8级: 5.5秒
+		[9] = 5,   -- 9级: 5秒
+		[10] = 4   -- 10级: 4秒
+	},
+	Shipper = {
+		[1] = 15,  -- 1级: 15秒
+		[2] = 13,  -- 2级: 13秒
+		[3] = 11,  -- 3级: 11秒
+		[4] = 10,  -- 4级: 10秒
+		[5] = 9,   -- 5级: 9秒
+		[6] = 8,   -- 6级: 8秒
+		[7] = 7.5, -- 7级: 7.5秒
+		[8] = 7,   -- 8级: 7秒
+		[9] = 6.5, -- 9级: 6.5秒
+		[10] = 6   -- 10级: 6秒
+	},
+	Smelter = {
+		[1] = 12,  -- 1级: 12秒
+		[2] = 11,  -- 2级: 11秒
+		[3] = 10,  -- 3级: 10秒
+		[4] = 9.5, -- 4级: 9.5秒
+		[5] = 9,   -- 5级: 9秒
+		[6] = 8.5, -- 6级: 8.5秒
+		[7] = 8,   -- 7级: 8秒
+		[8] = 7.5, -- 8级: 7.5秒
+		[9] = 7,   -- 9级: 7秒
+		[10] = 6   -- 10级: 6秒
+	},
+	ToolForge = {
+		[1] = 20,  -- 1级: 20秒 (工具制作较慢)
+		[2] = 18,  -- 2级: 18秒
+		[3] = 16,  -- 3级: 16秒
+		[4] = 15,  -- 4级: 15秒
+		[5] = 14,  -- 5级: 14秒
+		[6] = 13,  -- 6级: 13秒
+		[7] = 12,  -- 7级: 12秒
+		[8] = 11,  -- 8级: 11秒
+		[9] = 10,  -- 9级: 10秒
+		[10] = 8   -- 10级: 8秒
+	},
+	EnergyStation = {
+		[1] = 30,  -- 1级: 30秒 (能量站充能间隔)
+		[2] = 28,  -- 2级: 28秒
+		[3] = 26,  -- 3级: 26秒
+		[4] = 24,  -- 4级: 24秒
+		[5] = 22,  -- 5级: 22秒
+		[6] = 20,  -- 6级: 20秒
+		[7] = 18,  -- 7级: 18秒
+		[8] = 16,  -- 8级: 16秒
+		[9] = 14,  -- 9级: 14秒
+		[10] = 12  -- 10级: 12秒
+	}
+}
+
+-- 其他系统冷却时间
+C.SYSTEM_COOLDOWNS = {
+	ROBOT_MINING = 2,      -- 机器人挖矿冷却 2秒
+	DAILY_SIGNIN = 86400,  -- 每日签到 24小时
+	SHELL_HATCHING = 5,    -- 孵化蛋冷却 5秒
+	BUILDING_UPGRADE = 3,  -- 建筑升级冷却 3秒
+	INVENTORY_OPERATION = 0.5, -- 背包操作冷却 0.5秒
+	TELEPORT = 10,         -- 传送冷却 10秒
+}
+
+--------------------------------------------------------------------
+-- 建筑系统配置
+--------------------------------------------------------------------
+
+-- 建筑类型定义
+C.BUILDING_TYPES = {
+	-- 生产类建筑
+	PRODUCTION = {
+		Crusher = {
+			name = "粉碎机",
+			description = "将废料粉碎成可用材料",
+			category = "生产",
+			icon = "⚒️",
+			baseSize = Vector3.new(4, 4, 4),
+			maxLevel = 10,
+			baseCost = 100,
+			energyConsumption = 5, -- 每分钟能耗
+			functionality = "process_scrap"
+		},
+		Generator = {
+			name = "发电机",
+			description = "生成电力供其他建筑使用",
+			category = "生产",
+			icon = "⚡",
+			baseSize = Vector3.new(4, 4, 4),
+			maxLevel = 10,
+			baseCost = 150,
+			energyConsumption = 0,
+			energyProduction = 10, -- 每分钟发电量
+			functionality = "generate_energy"
+		},
+		Assembler = {
+			name = "组装机",
+			description = "组装复杂的机器零件",
+			category = "生产",
+			icon = "🔧",
+			baseSize = Vector3.new(4, 4, 4),
+			maxLevel = 10,
+			baseCost = 200,
+			energyConsumption = 8,
+			functionality = "assemble_parts"
+		},
+		Smelter = {
+			name = "熔炉",
+			description = "熔炼矿石制造金属锭",
+			category = "生产",
+			icon = "🔥",
+			baseSize = Vector3.new(4, 4, 4),
+			maxLevel = 10,
+			baseCost = 250,
+			energyConsumption = 12,
+			functionality = "smelt_ores"
+		},
+		ToolForge = {
+			name = "工具铺",
+			description = "制作各种工具和装备",
+			category = "生产",
+			icon = "🛠️",
+			baseSize = Vector3.new(4, 4, 4),
+			maxLevel = 10,
+			baseCost = 300,
+			energyConsumption = 10,
+			functionality = "craft_tools"
+		}
+	},
+	
+	-- 功能类建筑
+	FUNCTIONAL = {
+		EnergyStation = {
+			name = "能量站",
+			description = "为机器人充电和能量传输",
+			category = "功能",
+			icon = "🔋",
+			baseSize = Vector3.new(6, 6, 6),
+			maxLevel = 10,
+			baseCost = 500,
+			energyConsumption = 3,
+			functionality = "charge_robots"
+		},
+		StorageWarehouse = {
+			name = "储存仓库",
+			description = "大容量物品存储设施",
+			category = "功能",
+			icon = "📦",
+			baseSize = Vector3.new(8, 6, 8),
+			maxLevel = 5,
+			baseCost = 400,
+			energyConsumption = 2,
+			functionality = "store_items"
+		},
+		ResearchLab = {
+			name = "研究实验室",
+			description = "研发新技术和升级",
+			category = "功能",
+			icon = "🔬",
+			baseSize = Vector3.new(6, 6, 6),
+			maxLevel = 8,
+			baseCost = 800,
+			energyConsumption = 15,
+			functionality = "research_tech"
+		},
+		RobotFactory = {
+			name = "机器人工厂",
+			description = "生产和升级机器人",
+			category = "功能",
+			icon = "🤖",
+			baseSize = Vector3.new(8, 6, 8),
+			maxLevel = 10,
+			baseCost = 1000,
+			energyConsumption = 20,
+			functionality = "build_robots"
+		},
+		TeleportPad = {
+			name = "传送台",
+			description = "快速传送到不同区域",
+			category = "功能",
+			icon = "🌀",
+			baseSize = Vector3.new(4, 2, 4),
+			maxLevel = 3,
+			baseCost = 1500,
+			energyConsumption = 25,
+			functionality = "teleport"
+		}
+	},
+	
+	-- 基础设施建筑
+	INFRASTRUCTURE = {
+		PowerLine = {
+			name = "电力线",
+			description = "连接建筑传输电力",
+			category = "基础设施",
+			icon = "⚡",
+			baseSize = Vector3.new(1, 4, 1),
+			maxLevel = 3,
+			baseCost = 50,
+			energyConsumption = 0,
+			functionality = "power_transmission"
+		},
+		ConveyorBelt = {
+			name = "传送带",
+			description = "自动运输物品",
+			category = "基础设施",
+			icon = "➡️",
+			baseSize = Vector3.new(4, 1, 1),
+			maxLevel = 5,
+			baseCost = 100,
+			energyConsumption = 1,
+			functionality = "transport_items"
+		},
+		Bridge = {
+			name = "桥梁",
+			description = "跨越地形障碍",
+			category = "基础设施",
+			icon = "🌉",
+			baseSize = Vector3.new(8, 2, 4),
+			maxLevel = 3,
+			baseCost = 300,
+			energyConsumption = 0,
+			functionality = "terrain_bridge"
+		}
+	},
+	
+	-- 装饰建筑
+	DECORATIVE = {
+		Fountain = {
+			name = "喷泉",
+			description = "美丽的装饰喷泉",
+			category = "装饰",
+			icon = "⛲",
+			baseSize = Vector3.new(4, 4, 4),
+			maxLevel = 3,
+			baseCost = 200,
+			energyConsumption = 1,
+			functionality = "decoration",
+			beautyValue = 10
+		},
+		Garden = {
+			name = "花园",
+			description = "绿色植物装饰区域",
+			category = "装饰",
+			icon = "🌳",
+			baseSize = Vector3.new(6, 2, 6),
+			maxLevel = 5,
+			baseCost = 150,
+			energyConsumption = 0,
+			functionality = "decoration",
+			beautyValue = 8
+		},
+		Statue = {
+			name = "雕像",
+			description = "威严的纪念雕像",
+			category = "装饰",
+			icon = "🗿",
+			baseSize = Vector3.new(2, 6, 2),
+			maxLevel = 3,
+			baseCost = 500,
+			energyConsumption = 0,
+			functionality = "decoration",
+			beautyValue = 15
+		},
+		LightTower = {
+			name = "照明塔",
+			description = "提供区域照明",
+			category = "装饰",
+			icon = "💡",
+			baseSize = Vector3.new(2, 8, 2),
+			maxLevel = 5,
+			baseCost = 100,
+			energyConsumption = 2,
+			functionality = "lighting",
+			beautyValue = 5
+		}
+	}
+}
+
+-- 建筑解锁条件
+C.BUILDING_UNLOCK_CONDITIONS = {
+	-- 生产建筑解锁条件
+	Crusher = { tier = 0, credits = 0 },
+	Generator = { tier = 0, credits = 100 },
+	Assembler = { tier = 1, credits = 500 },
+	Smelter = { tier = 1, credits = 800 },
+	ToolForge = { tier = 1, credits = 1000 },
+	
+	-- 功能建筑解锁条件
+	EnergyStation = { tier = 2, credits = 2000 },
+	StorageWarehouse = { tier = 1, credits = 1500 },
+	ResearchLab = { tier = 2, credits = 3000 },
+	RobotFactory = { tier = 3, credits = 5000 },
+	TeleportPad = { tier = 4, credits = 10000 },
+	
+	-- 基础设施解锁条件
+	PowerLine = { tier = 1, credits = 200 },
+	ConveyorBelt = { tier = 1, credits = 500 },
+	Bridge = { tier = 2, credits = 1000 },
+	
+	-- 装饰建筑解锁条件
+	Fountain = { tier = 1, credits = 800 },
+	Garden = { tier = 0, credits = 300 },
+	Statue = { tier = 2, credits = 2000 },
+	LightTower = { tier = 1, credits = 400 }
+}
+
+-- 建筑升级成本公式
+C.BUILDING_UPGRADE_FORMULA = {
+	costMultiplier = 1.5, -- 每级成本增长倍数
+	energyMultiplier = 1.2, -- 每级能耗增长倍数
+	outputMultiplier = 1.3, -- 每级产出增长倍数
+	beautyMultiplier = 1.1  -- 每级美观度增长倍数
+}
+
+-- 建筑放置规则
+C.BUILDING_PLACEMENT_RULES = {
+	minDistanceFromOthers = 2, -- 与其他建筑的最小距离
+	maxDistanceFromPower = 20, -- 与电力源的最大距离
+	requiresFlatGround = true, -- 是否需要平坦地面
+	canOverlapTerrain = false, -- 是否可以重叠地形
+	snapToGrid = true,         -- 是否对齐网格
+	gridSize = 2               -- 网格大小
+}
+
 return C

@@ -5,7 +5,25 @@ local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local GameLogic = require(script.Parent.ServerModules.GameLogicServer)
+local CooldownManager = require(game.ServerScriptService.ServerModules.CooldownManager)
 local Const = require(RS.SharedModules.GameConstants)
+
+----------------------------------------------------------------
+-- RemoteEvents 设置 (移到开头确保客户端能找到)
+----------------------------------------------------------------
+local CraftEvent = RS:FindFirstChild("CraftItemEvent")
+if not CraftEvent then
+	CraftEvent = Instance.new("RemoteEvent")
+	CraftEvent.Name = "CraftItemEvent"
+	CraftEvent.Parent = RS
+end
+
+local CraftStatusEvent = RS:FindFirstChild("CraftStatusEvent")
+if not CraftStatusEvent then
+	CraftStatusEvent = Instance.new("RemoteEvent")
+	CraftStatusEvent.Name = "CraftStatusEvent"
+	CraftStatusEvent.Parent = RS
+end
 
 ----------------------------------------------------------------
 -- 制作配方定义 (根据GDD Final.md)
@@ -123,22 +141,7 @@ local RECIPES = {
 	}
 }
 
-----------------------------------------------------------------
--- RemoteEvents 设置
-----------------------------------------------------------------
-local CraftEvent = RS:FindFirstChild("CraftItemEvent")
-if not CraftEvent then
-	CraftEvent = Instance.new("RemoteEvent")
-	CraftEvent.Name = "CraftItemEvent"
-	CraftEvent.Parent = RS
-end
 
-local CraftStatusEvent = RS:FindFirstChild("CraftStatusEvent")
-if not CraftStatusEvent then
-	CraftStatusEvent = Instance.new("RemoteEvent")
-	CraftStatusEvent.Name = "CraftStatusEvent"
-	CraftStatusEvent.Parent = RS
-end
 
 ----------------------------------------------------------------
 -- 制作队列管理
@@ -198,6 +201,17 @@ CraftEvent.OnServerEvent:Connect(function(player, itemName)
 	local recipe = RECIPES[itemName]
 	if not recipe then
 		CraftEvent:FireClient(player, false, "未知的制作配方: " .. itemName)
+		return
+	end
+	
+	-- 检查建筑冷却时间
+	local buildingType = recipe.building or "ToolForge"
+	local buildingLevel = 1 -- 这里应该从玩家数据获取建筑等级
+	
+	-- 尝试使用机器（检查并设置冷却）
+	local canUse, remainingCD = CooldownManager.TryUseMachine(player, buildingType, "main", buildingLevel)
+	if not canUse then
+		CraftEvent:FireClient(player, false, string.format("%s 冷却中，剩余 %.1f 秒", buildingType, remainingCD))
 		return
 	end
 	

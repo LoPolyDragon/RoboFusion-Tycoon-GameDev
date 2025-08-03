@@ -1,0 +1,3 @@
+# OrePrefabs folder for mine generation system
+# This folder contains prefab models for different ore types
+# If no prefabs are found, the system will create default colored blocks

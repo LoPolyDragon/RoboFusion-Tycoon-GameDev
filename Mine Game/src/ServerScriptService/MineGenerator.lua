@@ -1,5 +1,5 @@
 ----------------------------------------------------------------
--- MineGenerator.lua · 震撼山脉生成版
+-- MineGenerator.lua · 多山分离优化版
 -- 生成逻辑：
 --   1) 使用多层噪声生成壮观的山脉地形
 --   2) 创建连续的山峰和山谷
@@ -11,21 +11,30 @@
 local RS = game:GetService("ReplicatedStorage")
 
 ----------------------------------------------------------------
--- ★ 真正的山脉地形参数
+-- ★ 真正的山脉地形参数 (根据GDD Final.md优化)
 ----------------------------------------------------------------
-local CELL_SIZE = 3 -- 每体素边长（stud）
-local GRID_SIZE = 60 -- X / Z 体素数 (更大区域展现山脉)
+local CELL_SIZE = 4 -- 每体素边长（stud）
+local GRID_SIZE = 80 -- X / Z 体素数 (320x320 studs，中等尺寸)
 local MIN_HEIGHT = 3 -- 山体最低 Y（stud）
-local MAX_HEIGHT = 45 -- 最高山峰（stud，真正的山峰高度）
-local BASE_Y = 10 -- 整体抬升，让山脉更壮观
+local MAX_HEIGHT = 60 -- 最高山峰（240 studs，适中高度）
+local BASE_Y = 0 -- 从地面开始生成，让山脉更自然
 
--- 每层矿石分布 (适应山脉高度)
-local ORE_LAYERS = {
-	{ min = 3, max = 15, ores = { "Stone", "IronOre" } },
-	{ min = 15, max = 25, ores = { "Stone", "BronzeOre" } },
-	{ min = 25, max = 35, ores = { "Stone", "GoldOre" } },
-	{ min = 35, max = 42, ores = { "Stone", "DiamondOre" } },
-	{ min = 42, max = 45, ores = { "Stone", "TitaniumOre", "UraniumOre" } },
+-- 矿石稀有度分布 (严格按照GDD Final.md深度要求)
+local ORE_DISTRIBUTION = {
+	-- Scrap可在任何地方
+	{ name = "Scrap", minDepth = 0, maxDepth = 300, rarity = 0.15 },
+	-- Iron Ore: 20-60 stud深度
+	{ name = "IronOre", minDepth = 20, maxDepth = 60, rarity = 0.12 },
+	-- Bronze Ore: 60-100 stud深度
+	{ name = "BronzeOre", minDepth = 60, maxDepth = 100, rarity = 0.08 },
+	-- Gold Ore: 100-160 stud深度
+	{ name = "GoldOre", minDepth = 100, maxDepth = 160, rarity = 0.06 },
+	-- Diamond Ore: 160-220 stud深度
+	{ name = "DiamondOre", minDepth = 160, maxDepth = 220, rarity = 0.04 },
+	-- Titanium Ore: 220-280 stud深度
+	{ name = "TitaniumOre", minDepth = 220, maxDepth = 280, rarity = 0.025 },
+	-- Uranium Ore: ≥280 stud深度
+	{ name = "UraniumOre", minDepth = 280, maxDepth = 300, rarity = 0.015 },
 }
 
 local PREFABS = RS:WaitForChild("OrePrefabs")
@@ -43,40 +52,49 @@ local function ridgeNoise(x, z, seed, scale)
 	return math.abs(noise * 2 - 1) -- 产生山脊效果
 end
 
--- 真正的山脉地形生成
+-- 壮观山脉地形生成 (更多山峰，更真实的山脉效果)
 local function mountainNoise(x, z, seed)
-	-- 创建多个山峰中心点
+	-- 创建6座分离的小山，每座山都是独立的
 	local peaks = {
-		{x = GRID_SIZE * 0.3, z = GRID_SIZE * 0.3, height = 0.9},
-		{x = GRID_SIZE * 0.7, z = GRID_SIZE * 0.4, height = 0.8},
-		{x = GRID_SIZE * 0.5, z = GRID_SIZE * 0.7, height = 0.85},
-		{x = GRID_SIZE * 0.2, z = GRID_SIZE * 0.8, height = 0.7},
+		{x = GRID_SIZE * 0.25, z = GRID_SIZE * 0.25, height = 0.9}, -- 山址1（左下）
+		{x = GRID_SIZE * 0.75, z = GRID_SIZE * 0.25, height = 0.85}, -- 山址2（右下）
+		{x = GRID_SIZE * 0.25, z = GRID_SIZE * 0.75, height = 0.8}, -- 山址3（左上）
+		{x = GRID_SIZE * 0.75, z = GRID_SIZE * 0.75, height = 0.88}, -- 山址4（右上）
+		{x = GRID_SIZE * 0.5, z = GRID_SIZE * 0.15, height = 0.75}, -- 山址5（下中）
+		{x = GRID_SIZE * 0.5, z = GRID_SIZE * 0.85, height = 0.82}, -- 山址6（上中）
 	}
 	
 	local height = 0
 	local totalWeight = 0
 	
-	-- 计算到各个山峰的距离，创建山脉效果
+	-- 计算到各个山峰的距离，创建分离的小山
 	for _, peak in pairs(peaks) do
 		local distance = math.sqrt((x - peak.x)^2 + (z - peak.z)^2)
-		local influence = math.max(0, 1 - distance / (GRID_SIZE * 0.4))
-		influence = influence^2 -- 平方衰减，创造尖锐的山峰
+		local influence = math.max(0, 1 - distance / (GRID_SIZE * 0.15)) -- 小影响范围，创建分离的山
+		
+		-- 创造独立的小山
+		if distance < GRID_SIZE * 0.08 then -- 小山的峰顶区域
+			influence = influence^2 -- 适中衰减
+		else
+			influence = influence^4 -- 急剧衰减，创造分离效果
+		end
 		
 		height = height + peak.height * influence
 		totalWeight = totalWeight + influence
 	end
 	
-	-- 添加基础噪声创造自然变化
-	local baseNoise = math.noise((x + seed) / 12, (z + seed) / 12) * 0.3
-	local detailNoise = math.noise((x + seed) / 6, (z + seed) / 6) * 0.15
+	-- 添加多层噪声创造复杂山脉纹理
+	local baseNoise = math.noise((x + seed) / 20, (z + seed) / 20) * 0.4
+	local detailNoise = math.noise((x + seed) / 8, (z + seed) / 8) * 0.2
+	local ridgeNoise = ridgeNoise(x, z, seed, 15) * 0.3 -- 山脊效果
 	
-	height = height + baseNoise + detailNoise
+	height = height + baseNoise + detailNoise + ridgeNoise
 	
-	-- 确保边界平滑过渡到平地
+	-- 更自然的边界过渡，保持山脉边缘的壮观
 	local centerX, centerZ = GRID_SIZE / 2, GRID_SIZE / 2
 	local edgeDistance = math.sqrt((x - centerX)^2 + (z - centerZ)^2)
-	local maxEdgeDistance = GRID_SIZE * 0.45
-	local edgeFalloff = math.max(0, 1 - (edgeDistance / maxEdgeDistance)^1.2)
+	local maxEdgeDistance = GRID_SIZE * 0.48 -- 更大的有效范围
+	local edgeFalloff = math.max(0, 1 - (edgeDistance / maxEdgeDistance)^0.8) -- 更缓和的边界衰减
 	
 	height = height * edgeFalloff
 	
@@ -138,7 +156,7 @@ end
 local MineGenerator = {}
 
 function MineGenerator.Generate(rootFolder, seed)
-	print("[MineGenerator] 开始生成震撼山脉地形...")
+	print("[MineGenerator] 开始生成多山分离地形...")
 	print("[MineGenerator] rootFolder:", rootFolder, rootFolder and rootFolder.Parent)
 	seed = seed or os.time()
 	math.randomseed(seed)
@@ -150,7 +168,7 @@ function MineGenerator.Generate(rootFolder, seed)
 	local minH = MAX_HEIGHT
 	local maxH = MIN_HEIGHT
 	
-	print("[MineGenerator] 正在生成山脉高度图...")
+	print("[MineGenerator] 正在生成多山高度图...")
 	for x = 1, GRID_SIZE do
 		height[x] = {}
 		for z = 1, GRID_SIZE do
@@ -274,19 +292,29 @@ function MineGenerator.Generate(rootFolder, seed)
 		print(("[DEBUG] %s: 尝试%d次，放置%d个方块"):format(ore, attempts, placedBlocks))
 	end
 
-	-- 按高度层分布不同矿物，降低稀有矿物高度要求
-	print("[DEBUG] 开始生成矿脉...")
-	addLargeVein("IronOre", 1, 25, 15, 20, 2)
+	-- 严格按照GDD Final.md深度要求生成矿脉
+	print("[DEBUG] 开始按GDD标准生成矿脉...")
+	-- 大幅减少矿脉数量，提高性能
+	-- Scrap矿脉 (少量)
+	addLargeVein("Scrap", 1, 60, 8, 8, 1)
+	print("[DEBUG] Scrap 矿脉生成完成")
+	-- Iron Ore: 20-60 stud
+	addLargeVein("IronOre", 5, 15, 6, 6, 1)
 	print("[DEBUG] IronOre 矿脉生成完成")
-	addLargeVein("BronzeOre", 10, 35, 12, 15, 2)
+	-- Bronze Ore: 60-100 stud
+	addLargeVein("BronzeOre", 15, 25, 5, 5, 1)
 	print("[DEBUG] BronzeOre 矿脉生成完成")
-	addLargeVein("GoldOre", 20, 40, 10, 12, 2)
+	-- Gold Ore: 100-160 stud
+	addLargeVein("GoldOre", 25, 35, 4, 4, 1)
 	print("[DEBUG] GoldOre 矿脉生成完成")
-	addLargeVein("DiamondOre", 25, 45, 8, 10, 1)  -- 降低最低高度
+	-- Diamond Ore: 160-220 stud
+	addLargeVein("DiamondOre", 35, 45, 3, 3, 1)
 	print("[DEBUG] DiamondOre 矿脉生成完成")
-	addLargeVein("TitaniumOre", 30, 45, 6, 8, 1)  -- 降低最低高度
+	-- Titanium Ore: 220-280 stud
+	addLargeVein("TitaniumOre", 45, 55, 2, 2, 1)
 	print("[DEBUG] TitaniumOre 矿脉生成完成")
-	addLargeVein("UraniumOre", 35, 45, 4, 6, 1)   -- 降低最低高度
+	-- Uranium Ore: ≥280 stud
+	addLargeVein("UraniumOre", 55, 60, 1, 1, 1)
 	print("[DEBUG] UraniumOre 矿脉生成完成")
 
 	--------------------------------------------------------------
@@ -315,10 +343,10 @@ function MineGenerator.Generate(rootFolder, seed)
 						-- 取出唯一的 Part
 						local part = mdl:FindFirstChildWhichIsA("BasePart")
 						if part then
-							-- 计算世界坐标，中心对齐
-							local worldX = (x - GRID_SIZE/2) * CELL_SIZE
+							-- 计算世界坐标，以(0,0,0)为中心
+							local worldX = (x - (GRID_SIZE+1)/2) * CELL_SIZE
 							local worldY = BASE_Y + y * CELL_SIZE
-							local worldZ = (z - GRID_SIZE/2) * CELL_SIZE
+							local worldZ = (z - (GRID_SIZE+1)/2) * CELL_SIZE
 							
 							part.Position = Vector3.new(worldX, worldY, worldZ)
 							
@@ -348,16 +376,17 @@ function MineGenerator.Generate(rootFolder, seed)
 		end
 	end
 	
-	print("[MineGenerator] 🏔️ 山脉地形生成完成！")
+	print("[MineGenerator] 🏔️ 多山分离地形生成完成！")
 	print(("📏 地图大小: %d×%d 体素 (%.0f×%.0f studs)"):format(GRID_SIZE, GRID_SIZE, GRID_SIZE*CELL_SIZE, GRID_SIZE*CELL_SIZE))
-	print(("⛰️  高度范围: %d~%d studs"):format(minH, maxH))
+	print(("⛰️  高度范围: %d~%d studs (总高度约%.0f studs)"):format(minH, maxH, maxH*CELL_SIZE))
 	print(("🧱 总方块数: %d"):format(blockCount))
-	print("💎 矿物分布统计:")
+	print("💎 矿物分布统计 (按GDD Final.md标准):")
 	for ore, count in pairs(oreCount) do
 		print(("   %s: %d 块"):format(ore, count))
 	end
-	print(("🎯 山峰数量: 4个独立山峰"))
-	print("✅ 震撼的山脉地形已就绪！")
+	print(("🎯 山峰数量: 6座分离的小山"))
+	print(("🏔️ 优化规模: 约%.0f stud高，%.0f×%.0f底座的山区（以0,0,0为中心）"):format(MAX_HEIGHT*CELL_SIZE, GRID_SIZE*CELL_SIZE, GRID_SIZE*CELL_SIZE))
+	print("✅ 性能优化的多山地形已就绪！分离的小山+少量矿石！")
 end
 
 return MineGenerator

@@ -38,58 +38,142 @@ end
 local GameConstants = require(ReplicatedStorage.SharedModules.GameConstants.main)
 local IconUtils = require(ReplicatedStorage.ClientUtils.IconUtils)
 
--- 工具配方数据（与服务器端同步）
+-- 工具配方数据（专门用于制作工具和装备）
 local TOOL_RECIPES = {
-    -- 基础材料
+    -- 基础工具组件
     {
-        id = "ScrapWood",
-        name = "Scrap Wood",
-        category = "Materials",
-        materials = {Scrap = 5},
-        output = {ScrapWood = 1},
-        time = 3,
-        description = "用废料制作木材",
+        id = "WoodHandle",
+        name = "Wood Handle",
+        category = "Components",
+        materials = {Scrap = 3},
+        output = {WoodHandle = 1},
+        time = 2,
+        description = "制作木制把手",
         unlockLevel = 1
     },
     {
-        id = "IronBar",
-        name = "Iron Bar",
-        category = "Materials",
-        materials = {Scrap = 1, IronOre = 1},
-        output = {IronBar = 1},
+        id = "IronHead",
+        name = "Iron Head",
+        category = "Components", 
+        materials = {IronBar = 1},
+        output = {IronHead = 1},
+        time = 5,
+        description = "锻造铁制工具头",
+        unlockLevel = 1
+    },
+    {
+        id = "SteelBlade",
+        name = "Steel Blade",
+        category = "Components",
+        materials = {SteelBar = 1},
+        output = {SteelBlade = 1},
         time = 8,
-        description = "熔炼铁锭：废料 + 铁矿",
-        unlockLevel = 1
-    },
-    {
-        id = "BronzeGear",
-        name = "Bronze Gear", 
-        category = "Materials",
-        materials = {Scrap = 1, BronzeOre = 1},
-        output = {BronzeGear = 1},
-        time = 12,
-        description = "制作青铜齿轮：废料 + 青铜矿",
+        description = "锻造钢制刀刃",
         unlockLevel = 2
     },
     {
-        id = "GoldPlatedEdge",
-        name = "Gold-Plated Edge",
-        category = "Materials",
-        materials = {Scrap = 2, GoldOre = 1},
-        output = {GoldPlatedEdge = 1},
-        time = 18,
-        description = "制作镀金边缘：废料 + 金矿",
+        id = "DiamondEdge",
+        name = "Diamond Edge",
+        category = "Components",
+        materials = {DiamondPlate = 1, SteelBlade = 1},
+        output = {DiamondEdge = 1},
+        time = 15,
+        description = "制作钻石边缘",
+        unlockLevel = 4
+    },
+    
+    -- 挖矿工具
+    {
+        id = "WoodPick",
+        name = "Wood Pick",
+        category = "Tools",
+        materials = {WoodHandle = 1, Scrap = 2},
+        output = {WoodPick = 1},
+        time = 5,
+        description = "制作木镐",
+        unlockLevel = 1
+    },
+    {
+        id = "IronPick",
+        name = "Iron Pick",
+        category = "Tools",
+        materials = {WoodHandle = 1, IronHead = 1},
+        output = {IronPick = 1},
+        time = 8,
+        description = "制作铁镐",
+        unlockLevel = 1
+    },
+    {
+        id = "BronzePick",
+        name = "Bronze Pick", 
+        category = "Tools",
+        materials = {WoodHandle = 1, BronzeAlloy = 1},
+        output = {BronzePick = 1},
+        time = 12,
+        description = "制作青铜镐",
+        unlockLevel = 2
+    },
+    {
+        id = "GoldPick",
+        name = "Gold Pick",
+        category = "Tools",
+        materials = {WoodHandle = 1, GoldBar = 1},
+        output = {GoldPick = 1},
+        time = 15,
+        description = "制作金镐",
         unlockLevel = 3
     },
     {
-        id = "DiamondTip",
-        name = "Diamond Tip",
-        category = "Materials",
-        materials = {Scrap = 3, DiamondOre = 1},
-        output = {DiamondTip = 1},
-        time = 25,
-        description = "制作钻石尖端：废料 + 钻石矿",
+        id = "DiamondPick",
+        name = "Diamond Pick",
+        category = "Tools",
+        materials = {WoodHandle = 1, DiamondEdge = 1},
+        output = {DiamondPick = 1},
+        time = 20,
+        description = "制作钻石镐",
         unlockLevel = 4
+    },
+    
+    -- 锤子工具
+    {
+        id = "WoodHammer",
+        name = "Wood Hammer",
+        category = "Tools",
+        materials = {WoodHandle = 1, Scrap = 3},
+        output = {WoodHammer = 1},
+        time = 6,
+        description = "制作木锤",
+        unlockLevel = 1
+    },
+    {
+        id = "IronHammer",
+        name = "Iron Hammer",
+        category = "Tools",
+        materials = {WoodHandle = 1, IronHead = 2},
+        output = {IronHammer = 1},
+        time = 10,
+        description = "制作铁锤",
+        unlockLevel = 1
+    },
+    {
+        id = "SteelHammer",
+        name = "Steel Hammer",
+        category = "Tools", 
+        materials = {WoodHandle = 1, SteelBar = 1},
+        output = {SteelHammer = 1},
+        time = 15,
+        description = "制作钢锤",
+        unlockLevel = 2
+    },
+    {
+        id = "TitaniumHammer",
+        name = "Titanium Hammer",
+        category = "Tools",
+        materials = {WoodHandle = 1, TitaniumAlloy = 1},
+        output = {TitaniumHammer = 1},
+        time = 25,
+        description = "制作钛锤",
+        unlockLevel = 5
     },
     
     -- 挖掘镐子
@@ -707,7 +791,6 @@ local function showToolForgeUI(toolForgeModel)
     end
     
     currentToolForge = toolForgeModel
-    updateToolForgeUI()
     
     -- 显示动画
     toolForgeUI.mainFrame.Visible = true
@@ -722,6 +805,11 @@ local function showToolForgeUI(toolForgeModel)
         }
     )
     tween:Play()
+    
+    -- 在动画完成后更新UI
+    tween.Completed:Connect(function()
+        updateToolForgeUI()
+    end)
 end
 
 -- 隐藏Tool Forge UI

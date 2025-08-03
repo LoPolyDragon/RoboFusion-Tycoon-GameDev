@@ -2,7 +2,7 @@
 	<Meta name="ExplicitAutoJoints">true</Meta>
 	<External>null</External>
 	<External>nil</External>
-	<Item class="Model" referent="RBX696f53d6114747a887994364778721de">
+	<Item class="Model" referent="RBX59733ed4e4e2414bb9a7ce25d1d2c8ee">
 		<Properties>
 			<BinaryString name="AttributesSerialize"></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
@@ -37,7 +37,7 @@
 			<BinaryString name="Tags"></BinaryString>
 			<OptionalCoordinateFrame name="WorldPivotData"></OptionalCoordinateFrame>
 		</Properties>
-		<Item class="MeshPart" referent="RBXb374e926de3d4d1c9ac7e4352d139995">
+		<Item class="MeshPart" referent="RBX0278a6b7e71940ebbd02a106964dc9ad">
 			<Properties>
 				<SharedString name="AeroMeshData">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
 				<bool name="Anchored">false</bool>
@@ -52,9 +52,9 @@
 				<token name="BottomSurface">0</token>
 				<token name="BottomSurfaceInput">0</token>
 				<CoordinateFrame name="CFrame">
-					<X>-22.2240963</X>
-					<Y>46.8212776</Y>
-					<Z>14.3613939</Z>
+					<X>8.48888779</X>
+					<Y>19.4793625</Y>
+					<Z>-11.8904982</Z>
 					<R00>1</R00>
 					<R01>0</R01>
 					<R02>0</R02>
@@ -166,9 +166,9 @@
 				</Vector3>
 				<int name="VertexCount">0</int>
 				<Vector3 name="size">
-					<X>20</X>
-					<Y>20</Y>
-					<Z>20</Z>
+					<X>40</X>
+					<Y>33.8219986</Y>
+					<Z>34.8059998</Z>
 				</Vector3>
 			</Properties>
 		</Item>

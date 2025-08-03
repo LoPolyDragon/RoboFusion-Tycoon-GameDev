@@ -1,646 +1,999 @@
 --------------------------------------------------------------------
--- BuildingShopUI.client.lua · 建筑商店UI系统
--- 功能：右上角建筑商店按钮、机器选择界面、虚影跟随和放置
+-- BuildingShopUI.client.lua · 建筑商店界面
+-- 功能：
+--   1) 建筑分类浏览和购买
+--   2) 已建造建筑管理
+--   3) 建筑信息查看和升级
+--   4) 与建筑放置系统集成
 --------------------------------------------------------------------
 
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local mouse = player:GetMouse()
 
--- 等待共享模块
-local SharedModules = ReplicatedStorage:WaitForChild("SharedModules")
-local GameConstants = require(SharedModules.GameConstants)
+-- GameConstants
+local GameConstants = require(ReplicatedStorage.SharedModules.GameConstants)
 
--- 建筑配置
-local BUILDINGS = {
-    {
-        id = "Crusher",
-        name = "破碎机",
-        icon = "🔨",
-        price = 0,
-        description = "将废料转换为积分",
-        color = Color3.fromRGB(180, 90, 60)
-    },
-    {
-        id = "Generator", 
-        name = "生成器",
-        icon = "⚡",
-        price = 0,
-        description = "生成机器人外壳",
-        color = Color3.fromRGB(255, 215, 0)
-    },
-    {
-        id = "Assembler",
-        name = "组装器", 
-        icon = "🔧",
-        price = 0,
-        description = "将外壳组装成机器人",
-        color = Color3.fromRGB(70, 130, 255)
-    },
-    {
-        id = "Shipper",
-        name = "运输器",
-        icon = "📦", 
-        price = 0,
-        description = "售卖机器人获得积分",
-        color = Color3.fromRGB(100, 200, 100)
-    },
-    {
-        id = "EnergyMachine",
-        name = "能量站",
-        icon = "🔋",
-        price = 0, 
-        description = "为机器人充电",
-        color = Color3.fromRGB(255, 100, 255)
-    }
+-- RemoteEvents
+local buildingEvents = ReplicatedStorage:WaitForChild("BuildingEvents")
+local placeBuildingEvent = buildingEvents:WaitForChild("PlaceBuildingEvent")
+local manageBuildingEvent = buildingEvents:WaitForChild("ManageBuildingEvent")
+
+-- 建筑商店UI状态
+local BuildingShopUI = {
+    gui = nil,
+    isOpen = false,
+    selectedCategory = "PRODUCTION",
+    selectedBuilding = nil,
+    currentTab = "shop", -- "shop" 或 "manage"
+    playerBuildings = {},
+    playerData = {}
 }
 
--- UI状态
-local buildingShopUI = nil
-local ghostModel = nil
-local selectedBuilding = nil
-local isPlacingMode = false
-local placementConnection = nil
+--------------------------------------------------------------------
+-- UI创建函数
+--------------------------------------------------------------------
 
--- 隐藏商店界面 (提前定义)
-local function hideShop()
-    if not buildingShopUI then return end
-    
-    print("[BuildingShopUI] 隐藏建筑商店界面")
-    
-    local tween = TweenService:Create(buildingShopUI.mainFrame,
-        TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-        {
-            Size = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.new(0.5, 0, 0.5, 0)
-        }
-    )
-    tween:Play()
-    
-    tween.Completed:Connect(function()
-        buildingShopUI.background.Visible = false
-        buildingShopUI.mainFrame.Visible = false
-        print("[BuildingShopUI] 建筑商店界面已隐藏")
-    end)
-end
-
--- 等待RemoteFunction
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local remoteFolder = ReplicatedStorage:WaitForChild("RemoteEvents")
-local getMachineModelFunction = remoteFolder:WaitForChild("GetMachineModelFunction")
-local placeBuildingEvent = remoteFolder:WaitForChild("PlaceBuildingEvent")
-
--- 获取机器模型 (通过服务器)
-local function getMachineModel(buildingId)
-    print("[BuildingShopUI] 请求机器模型:", buildingId)
-    
-    local success, result = pcall(function()
-        return getMachineModelFunction:InvokeServer(buildingId)
-    end)
-    
-    if success and result then
-        print("[BuildingShopUI] 从服务器获得模型:", buildingId)
-        return result:Clone() -- 服务器返回的是模型，客户端克隆
-    else
-        warn("[BuildingShopUI] 无法从服务器获取模型:", buildingId)
-        return nil
-    end
-end
-
--- 创建虚影模型 (提前定义)
-local function createGhostModel(building)
-    print("[BuildingShopUI] 创建虚影模型:", building.name)
-    
-    -- 尝试获取真实机器模型
-    local machineModel = getMachineModel(building.id)
-    
-    local ghost
-    if machineModel then
-        print("[BuildingShopUI] 使用真实机器模型:", building.id)
-        ghost = machineModel
-        ghost.Name = "GhostBuilding"
-        
-        -- 设置所有部件为虚影状态，避免移动问题
-        local function setGhostProperties(obj)
-            if obj:IsA("BasePart") then
-                obj.Transparency = 0.5
-                obj.CanCollide = false
-                obj.Anchored = true
-                obj.BrickColor = BrickColor.new("Bright green")
-                -- 移除所有物理相关组件避免奇怪行为
-                for _, component in pairs(obj:GetChildren()) do
-                    if component:IsA("BodyVelocity") or component:IsA("BodyPosition") or component:IsA("BodyAngularVelocity") then
-                        component:Destroy()
-                    end
-                end
-            elseif obj:IsA("Script") or obj:IsA("LocalScript") then
-                -- 禁用脚本避免干扰
-                obj.Disabled = true
-            end
-            for _, child in pairs(obj:GetChildren()) do
-                setGhostProperties(child)
-            end
-        end
-        setGhostProperties(ghost)
-        
-        -- 如果是Model，设置PrimaryPart
-        if ghost:IsA("Model") and not ghost.PrimaryPart then
-            for _, part in pairs(ghost:GetChildren()) do
-                if part:IsA("BasePart") then
-                    ghost.PrimaryPart = part
-                    break
-                end
-            end
-        end
-    else
-        print("[BuildingShopUI] 使用备用立方体模型")
-        -- 备用：创建简单立方体
-        ghost = Instance.new("Part")
-        ghost.Name = "GhostBuilding"
-        ghost.Size = Vector3.new(8, 8, 8)
-        ghost.Material = Enum.Material.ForceField
-        ghost.BrickColor = BrickColor.new("Bright green")
-        ghost.Transparency = 0.5
-        ghost.CanCollide = false
-        ghost.Anchored = true
-    end
-    
-    ghost.Parent = workspace
-    
-    -- 添加发光效果
-    local selectionBox = Instance.new("SelectionBox")
-    selectionBox.Adornee = ghost
-    selectionBox.Color3 = building.color
-    selectionBox.LineThickness = 0.2
-    selectionBox.Transparency = 0.3
-    selectionBox.Parent = ghost
-    
-    -- 添加名称标签
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Size = UDim2.new(0, 100, 0, 30)
-    billboardGui.Adornee = ghost
-    billboardGui.Parent = ghost
-    
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 1, 0)
-    nameLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    nameLabel.BackgroundTransparency = 0.3
-    nameLabel.Text = building.name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextSize = 14
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.Parent = billboardGui
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = nameLabel
-    
-    return ghost
-end
-
--- 开始放置模式 (提前定义)
-local function startPlacementMode()
-    if isPlacingMode then return end
-    
-    print("[BuildingShopUI] 开始放置模式:", selectedBuilding.name)
-    isPlacingMode = true
-    
-    -- 创建虚影
-    ghostModel = createGhostModel(selectedBuilding)
-    
-    -- 更新虚影位置的连接 (限制在地面) - 针对Model+MeshPart结构
-    placementConnection = RunService.Heartbeat:Connect(function()
-        if ghostModel and mouse.Hit then
-            local targetPosition = mouse.Hit.Position
-            
-            -- 针对Model+MeshPart结构的移动
-            if ghostModel:IsA("Model") then
-                -- 找到Model中的MeshPart
-                local meshPart = nil
-                for _, child in pairs(ghostModel:GetChildren()) do
-                    if child:IsA("MeshPart") or child:IsA("Part") then
-                        meshPart = child
-                        break
-                    end
-                end
-                
-                if meshPart then
-                    -- 直接移动MeshPart，让它贴地
-                    local meshSize = meshPart.Size
-                    meshPart.Position = Vector3.new(targetPosition.X, meshSize.Y/2, targetPosition.Z)
-                end
-            elseif ghostModel:IsA("Part") or ghostModel:IsA("MeshPart") then
-                ghostModel.Position = Vector3.new(targetPosition.X, ghostModel.Size.Y/2, targetPosition.Z)
-            end
-        end
-    end)
-    
-    print("[BuildingShopUI] 左键放置建筑，右键取消")
-end
-
--- 创建右上角建筑商店按钮
-local function createBuildingShopButton()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BuildingShopButtonUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.Parent = playerGui
-    
-    local shopButton = Instance.new("TextButton")
-    shopButton.Size = UDim2.new(0, 80, 0, 70)
-    shopButton.Position = UDim2.new(1, -100, 0, 20)
-    shopButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
-    shopButton.Text = "🏗️\\nBUILD"
-    shopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    shopButton.TextSize = 14
-    shopButton.Font = Enum.Font.GothamBold
-    shopButton.BorderSizePixel = 0
-    shopButton.Active = true
-    shopButton.Parent = screenGui
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = shopButton
-    
-    return screenGui, shopButton
-end
-
--- 创建建筑商店界面
-local function createBuildingShopUI()
+-- 创建主界面
+local function createMainUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "BuildingShopUI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = playerGui
     
-    -- 背景遮罩
-    local background = Instance.new("Frame")
-    background.Size = UDim2.new(1, 0, 1, 0)
-    background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    background.BackgroundTransparency = 0.5
-    background.BorderSizePixel = 0
-    background.Visible = false
-    background.Parent = screenGui
-    
     -- 主框架
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 700, 0, 500)
-    mainFrame.Position = UDim2.new(0.5, -350, 0.5, -250)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0.8, 0, 0.8, 0)
+    mainFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     mainFrame.BorderSizePixel = 0
     mainFrame.Visible = false
     mainFrame.Parent = screenGui
     
+    -- 圆角
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 15)
     corner.Parent = mainFrame
     
     -- 标题栏
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 60)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 15)
+    titleCorner.Parent = titleBar
+    
+    -- 修复标题栏底部圆角
+    local titleBottom = Instance.new("Frame")
+    titleBottom.Size = UDim2.new(1, 0, 0, 15)
+    titleBottom.Position = UDim2.new(0, 0, 1, -15)
+    titleBottom.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    titleBottom.BorderSizePixel = 0
+    titleBottom.Parent = titleBar
+    
+    -- 标题文字
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -60, 0, 50)
-    titleLabel.Position = UDim2.new(0, 20, 0, 10)
+    titleLabel.Name = "TitleLabel"
+    titleLabel.Size = UDim2.new(0, 300, 1, 0)
+    titleLabel.Position = UDim2.new(0, 20, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "🏗️ 建筑商店"
+    titleLabel.Text = "🏗️ 建筑管理中心"
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextSize = 24
-    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextScaled = true
+    titleLabel.Font = Enum.Font.SourceSansBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = mainFrame
+    titleLabel.Parent = titleBar
     
     -- 关闭按钮
     local closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.new(0, 35, 0, 35)
-    closeButton.Position = UDim2.new(1, -45, 0, 10)
-    closeButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-    closeButton.Text = "×"
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.TextSize = 20
-    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 40, 0, 40)
+    closeButton.Position = UDim2.new(1, -50, 0, 10)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
     closeButton.BorderSizePixel = 0
-    closeButton.Active = true
-    closeButton.Parent = mainFrame
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextScaled = true
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.Parent = titleBar
     
     local closeCorner = Instance.new("UICorner")
     closeCorner.CornerRadius = UDim.new(0, 8)
     closeCorner.Parent = closeButton
     
+    -- Tab切换按钮
+    local tabFrame = Instance.new("Frame")
+    tabFrame.Name = "TabFrame"
+    tabFrame.Size = UDim2.new(0, 300, 0, 40)
+    tabFrame.Position = UDim2.new(0, 350, 0, 10)
+    tabFrame.BackgroundTransparency = 1
+    tabFrame.Parent = titleBar
+    
+    local shopTab = Instance.new("TextButton")
+    shopTab.Name = "ShopTab"
+    shopTab.Size = UDim2.new(0, 145, 1, 0)
+    shopTab.Position = UDim2.new(0, 0, 0, 0)
+    shopTab.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
+    shopTab.BorderSizePixel = 0
+    shopTab.Text = "🛒 建筑商店"
+    shopTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+    shopTab.TextScaled = true
+    shopTab.Font = Enum.Font.SourceSansBold
+    shopTab.Parent = tabFrame
+    
+    local shopTabCorner = Instance.new("UICorner")
+    shopTabCorner.CornerRadius = UDim.new(0, 8)
+    shopTabCorner.Parent = shopTab
+    
+    local manageTab = Instance.new("TextButton")
+    manageTab.Name = "ManageTab"
+    manageTab.Size = UDim2.new(0, 145, 1, 0)
+    manageTab.Position = UDim2.new(0, 155, 0, 0)
+    manageTab.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+    manageTab.BorderSizePixel = 0
+    manageTab.Text = "⚙️ 建筑管理"
+    manageTab.TextColor3 = Color3.fromRGB(200, 200, 200)
+    manageTab.TextScaled = true
+    manageTab.Font = Enum.Font.SourceSans
+    manageTab.Parent = tabFrame
+    
+    local manageTabCorner = Instance.new("UICorner")
+    manageTabCorner.CornerRadius = UDim.new(0, 8)
+    manageTabCorner.Parent = manageTab
+    
     -- 内容区域
-    local contentFrame = Instance.new("ScrollingFrame")
-    contentFrame.Size = UDim2.new(1, -40, 1, -80)
-    contentFrame.Position = UDim2.new(0, 20, 0, 70)
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "ContentFrame"
+    contentFrame.Size = UDim2.new(1, -20, 1, -80)
+    contentFrame.Position = UDim2.new(0, 10, 0, 70)
     contentFrame.BackgroundTransparency = 1
-    contentFrame.ScrollBarThickness = 8
     contentFrame.Parent = mainFrame
     
-    local layout = Instance.new("UIGridLayout")
-    layout.CellSize = UDim2.new(0, 200, 0, 120)
-    layout.CellPadding = UDim2.new(0, 20, 0, 20)
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Parent = contentFrame
+    -- 创建商店内容
+    createShopContent(contentFrame)
     
-    return screenGui, background, mainFrame, closeButton, contentFrame
+    -- 创建管理内容
+    createManageContent(contentFrame)
+    
+    -- 绑定事件
+    closeButton.MouseButton1Click:Connect(function()
+        BuildingShopUI.CloseUI()
+    end)
+    
+    shopTab.MouseButton1Click:Connect(function()
+        BuildingShopUI.SwitchTab("shop")
+    end)
+    
+    manageTab.MouseButton1Click:Connect(function()
+        BuildingShopUI.SwitchTab("manage")
+    end)
+    
+    return screenGui
 end
 
--- 检查玩家积分
-local function getPlayerCredits()
-    local leaderstats = player:FindFirstChild("leaderstats")
-    if leaderstats then
-        local credits = leaderstats:FindFirstChild("Credits")
-        if credits then
-            return credits.Value
-        end
+-- 创建商店内容
+local function createShopContent(parent)
+    local shopFrame = Instance.new("Frame")
+    shopFrame.Name = "ShopFrame"
+    shopFrame.Size = UDim2.new(1, 0, 1, 0)
+    shopFrame.Position = UDim2.new(0, 0, 0, 0)
+    shopFrame.BackgroundTransparency = 1
+    shopFrame.Visible = true
+    shopFrame.Parent = parent
+    
+    -- 左侧分类栏
+    local categoryFrame = Instance.new("Frame")
+    categoryFrame.Name = "CategoryFrame"
+    categoryFrame.Size = UDim2.new(0, 200, 1, 0)
+    categoryFrame.Position = UDim2.new(0, 0, 0, 0)
+    categoryFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    categoryFrame.BorderSizePixel = 0
+    categoryFrame.Parent = shopFrame
+    
+    local categoryCorner = Instance.new("UICorner")
+    categoryCorner.CornerRadius = UDim.new(0, 10)
+    categoryCorner.Parent = categoryFrame
+    
+    -- 分类按钮
+    local categories = {
+        {key = "PRODUCTION", name = "🏭 生产建筑", color = Color3.fromRGB(200, 100, 50)},
+        {key = "FUNCTIONAL", name = "⚙️ 功能建筑", color = Color3.fromRGB(50, 150, 200)},
+        {key = "INFRASTRUCTURE", name = "🔧 基础设施", color = Color3.fromRGB(100, 200, 50)},
+        {key = "DECORATIVE", name = "🎨 装饰建筑", color = Color3.fromRGB(200, 50, 150)}
+    }
+    
+    for i, category in ipairs(categories) do
+        local categoryButton = Instance.new("TextButton")
+        categoryButton.Name = category.key .. "Button"
+        categoryButton.Size = UDim2.new(1, -20, 0, 50)
+        categoryButton.Position = UDim2.new(0, 10, 0, 10 + (i-1) * 60)
+        categoryButton.BackgroundColor3 = category.color
+        categoryButton.BorderSizePixel = 0
+        categoryButton.Text = category.name
+        categoryButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        categoryButton.TextScaled = true
+        categoryButton.Font = Enum.Font.SourceSansBold
+        categoryButton.Parent = categoryFrame
+        
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 8)
+        buttonCorner.Parent = categoryButton
+        
+        categoryButton.MouseButton1Click:Connect(function()
+            BuildingShopUI.SelectCategory(category.key)
+        end)
     end
-    return 0
+    
+    -- 右侧建筑展示区
+    local buildingFrame = Instance.new("Frame")
+    buildingFrame.Name = "BuildingFrame"
+    buildingFrame.Size = UDim2.new(1, -220, 1, 0)
+    buildingFrame.Position = UDim2.new(0, 210, 0, 0)
+    buildingFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    buildingFrame.BorderSizePixel = 0
+    buildingFrame.Parent = shopFrame
+    
+    local buildingCorner = Instance.new("UICorner")
+    buildingCorner.CornerRadius = UDim.new(0, 10)
+    buildingCorner.Parent = buildingFrame
+    
+    -- 建筑网格
+    local buildingScrollFrame = Instance.new("ScrollingFrame")
+    buildingScrollFrame.Name = "BuildingScrollFrame"
+    buildingScrollFrame.Size = UDim2.new(1, -20, 0.7, -10)
+    buildingScrollFrame.Position = UDim2.new(0, 10, 0, 10)
+    buildingScrollFrame.BackgroundTransparency = 1
+    buildingScrollFrame.BorderSizePixel = 0
+    buildingScrollFrame.ScrollBarThickness = 10
+    buildingScrollFrame.Parent = buildingFrame
+    
+    local buildingGrid = Instance.new("UIGridLayout")
+    buildingGrid.CellSize = UDim2.new(0, 150, 0, 180)
+    buildingGrid.CellPadding = UDim2.new(0, 10, 0, 10)
+    buildingGrid.SortOrder = Enum.SortOrder.Name
+    buildingGrid.Parent = buildingScrollFrame
+    
+    -- 建筑详情面板
+    local detailFrame = Instance.new("Frame")
+    detailFrame.Name = "DetailFrame"
+    detailFrame.Size = UDim2.new(1, -20, 0.3, -20)
+    detailFrame.Position = UDim2.new(0, 10, 0.7, 10)
+    detailFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    detailFrame.BorderSizePixel = 0
+    detailFrame.Parent = buildingFrame
+    
+    local detailCorner = Instance.new("UICorner")
+    detailCorner.CornerRadius = UDim.new(0, 8)
+    detailCorner.Parent = detailFrame
+    
+    -- 详情内容
+    local detailLabel = Instance.new("TextLabel")
+    detailLabel.Name = "DetailLabel"
+    detailLabel.Size = UDim2.new(0.7, -20, 1, -20)
+    detailLabel.Position = UDim2.new(0, 10, 0, 10)
+    detailLabel.BackgroundTransparency = 1
+    detailLabel.Text = "选择一个建筑查看详情"
+    detailLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    detailLabel.TextScaled = true
+    detailLabel.Font = Enum.Font.SourceSans
+    detailLabel.TextXAlignment = Enum.TextXAlignment.Left
+    detailLabel.TextYAlignment = Enum.TextYAlignment.Top
+    detailLabel.Parent = detailFrame
+    
+    -- 购买按钮
+    local purchaseButton = Instance.new("TextButton")
+    purchaseButton.Name = "PurchaseButton"
+    purchaseButton.Size = UDim2.new(0.3, -20, 0, 50)
+    purchaseButton.Position = UDim2.new(0.7, 10, 0, 10)
+    purchaseButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    purchaseButton.BorderSizePixel = 0
+    purchaseButton.Text = "💰 购买建筑"
+    purchaseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    purchaseButton.TextScaled = true
+    purchaseButton.Font = Enum.Font.SourceSansBold
+    purchaseButton.Visible = false
+    purchaseButton.Parent = detailFrame
+    
+    local purchaseCorner = Instance.new("UICorner")
+    purchaseCorner.CornerRadius = UDim.new(0, 8)
+    purchaseCorner.Parent = purchaseButton
+    
+    purchaseButton.MouseButton1Click:Connect(function()
+        BuildingShopUI.PurchaseBuilding()
+    end)
 end
+
+-- 创建管理内容
+local function createManageContent(parent)
+    local manageFrame = Instance.new("Frame")
+    manageFrame.Name = "ManageFrame"
+    manageFrame.Size = UDim2.new(1, 0, 1, 0)
+    manageFrame.Position = UDim2.new(0, 0, 0, 0)
+    manageFrame.BackgroundTransparency = 1
+    manageFrame.Visible = false
+    manageFrame.Parent = parent
+    
+    -- 已建造建筑列表
+    local buildingListFrame = Instance.new("Frame")
+    buildingListFrame.Name = "BuildingListFrame"
+    buildingListFrame.Size = UDim2.new(0.6, -10, 1, 0)
+    buildingListFrame.Position = UDim2.new(0, 0, 0, 0)
+    buildingListFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    buildingListFrame.BorderSizePixel = 0
+    buildingListFrame.Parent = manageFrame
+    
+    local listCorner = Instance.new("UICorner")
+    listCorner.CornerRadius = UDim.new(0, 10)
+    listCorner.Parent = buildingListFrame
+    
+    -- 列表标题
+    local listTitle = Instance.new("TextLabel")
+    listTitle.Name = "ListTitle"
+    listTitle.Size = UDim2.new(1, -20, 0, 40)
+    listTitle.Position = UDim2.new(0, 10, 0, 10)
+    listTitle.BackgroundTransparency = 1
+    listTitle.Text = "📋 已建造建筑列表"
+    listTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    listTitle.TextScaled = true
+    listTitle.Font = Enum.Font.SourceSansBold
+    listTitle.TextXAlignment = Enum.TextXAlignment.Left
+    listTitle.Parent = buildingListFrame
+    
+    -- 建筑列表滚动框
+    local listScrollFrame = Instance.new("ScrollingFrame")
+    listScrollFrame.Name = "ListScrollFrame"
+    listScrollFrame.Size = UDim2.new(1, -20, 1, -60)
+    listScrollFrame.Position = UDim2.new(0, 10, 0, 50)
+    listScrollFrame.BackgroundTransparency = 1
+    listScrollFrame.BorderSizePixel = 0
+    listScrollFrame.ScrollBarThickness = 8
+    listScrollFrame.Parent = buildingListFrame
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.SortOrder = Enum.SortOrder.Name
+    listLayout.Padding = UDim.new(0, 5)
+    listLayout.Parent = listScrollFrame
+    
+    -- 右侧操作面板
+    local operationFrame = Instance.new("Frame")
+    operationFrame.Name = "OperationFrame"
+    operationFrame.Size = UDim2.new(0.4, -10, 1, 0)
+    operationFrame.Position = UDim2.new(0.6, 10, 0, 0)
+    operationFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    operationFrame.BorderSizePixel = 0
+    operationFrame.Parent = manageFrame
+    
+    local operationCorner = Instance.new("UICorner")
+    operationCorner.CornerRadius = UDim.new(0, 10)
+    operationCorner.Parent = operationFrame
+    
+    -- 操作面板内容
+    local operationTitle = Instance.new("TextLabel")
+    operationTitle.Name = "OperationTitle"
+    operationTitle.Size = UDim2.new(1, -20, 0, 40)
+    operationTitle.Position = UDim2.new(0, 10, 0, 10)
+    operationTitle.BackgroundTransparency = 1
+    operationTitle.Text = "⚙️ 建筑操作"
+    operationTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    operationTitle.TextScaled = true
+    operationTitle.Font = Enum.Font.SourceSansBold
+    operationTitle.TextXAlignment = Enum.TextXAlignment.Left
+    operationTitle.Parent = operationFrame
+    
+    -- 建筑信息显示
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Name = "InfoLabel"
+    infoLabel.Size = UDim2.new(1, -20, 0, 200)
+    infoLabel.Position = UDim2.new(0, 10, 0, 60)
+    infoLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    infoLabel.BorderSizePixel = 0
+    infoLabel.Text = "选择一个建筑查看详情"
+    infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    infoLabel.TextScaled = true
+    infoLabel.Font = Enum.Font.SourceSans
+    infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+    infoLabel.Parent = operationFrame
+    
+    local infoCorner = Instance.new("UICorner")
+    infoCorner.CornerRadius = UDim.new(0, 8)
+    infoCorner.Parent = infoLabel
+    
+    -- 操作按钮
+    local buttonFrame = Instance.new("Frame")
+    buttonFrame.Name = "ButtonFrame"
+    buttonFrame.Size = UDim2.new(1, -20, 0, 150)
+    buttonFrame.Position = UDim2.new(0, 10, 0, 280)
+    buttonFrame.BackgroundTransparency = 1
+    buttonFrame.Parent = operationFrame
+    
+    local upgradeButton = Instance.new("TextButton")
+    upgradeButton.Name = "UpgradeButton"
+    upgradeButton.Size = UDim2.new(1, 0, 0, 45)
+    upgradeButton.Position = UDim2.new(0, 0, 0, 0)
+    upgradeButton.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
+    upgradeButton.BorderSizePixel = 0
+    upgradeButton.Text = "⬆️ 升级建筑"
+    upgradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    upgradeButton.TextScaled = true
+    upgradeButton.Font = Enum.Font.SourceSansBold
+    upgradeButton.Parent = buttonFrame
+    
+    local upgradeCorner = Instance.new("UICorner")
+    upgradeCorner.CornerRadius = UDim.new(0, 8)
+    upgradeCorner.Parent = upgradeButton
+    
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(1, 0, 0, 45)
+    toggleButton.Position = UDim2.new(0, 0, 0, 55)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Text = "⏸️ 暂停/启动"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.TextScaled = true
+    toggleButton.Font = Enum.Font.SourceSansBold
+    toggleButton.Parent = buttonFrame
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 8)
+    toggleCorner.Parent = toggleButton
+    
+    local removeButton = Instance.new("TextButton")
+    removeButton.Name = "RemoveButton"
+    removeButton.Size = UDim2.new(1, 0, 0, 45)
+    removeButton.Position = UDim2.new(0, 0, 0, 110)
+    removeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    removeButton.BorderSizePixel = 0
+    removeButton.Text = "🗑️ 拆除建筑"
+    removeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    removeButton.TextScaled = true
+    removeButton.Font = Enum.Font.SourceSansBold
+    removeButton.Parent = buttonFrame
+    
+    local removeCorner = Instance.new("UICorner")
+    removeCorner.CornerRadius = UDim.new(0, 8)
+    removeCorner.Parent = removeButton
+    
+    -- 绑定操作按钮事件
+    upgradeButton.MouseButton1Click:Connect(function()
+        BuildingShopUI.UpgradeSelectedBuilding()
+    end)
+    
+    toggleButton.MouseButton1Click:Connect(function()
+        BuildingShopUI.ToggleSelectedBuilding()
+    end)
+    
+    removeButton.MouseButton1Click:Connect(function()
+        BuildingShopUI.RemoveSelectedBuilding()
+    end)
+end
+
+--------------------------------------------------------------------
+-- 建筑卡片创建
+--------------------------------------------------------------------
 
 -- 创建建筑卡片
-local function createBuildingCard(building, parent, layoutOrder)
+local function createBuildingCard(buildingType, config, parent)
     local cardFrame = Instance.new("Frame")
-    cardFrame.Size = UDim2.new(0, 200, 0, 120)
-    cardFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    cardFrame.Name = buildingType .. "Card"
+    cardFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
     cardFrame.BorderSizePixel = 0
-    cardFrame.LayoutOrder = layoutOrder
     cardFrame.Parent = parent
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = cardFrame
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 10)
+    cardCorner.Parent = cardFrame
     
-    -- 彩色顶部条
-    local colorStrip = Instance.new("Frame")
-    colorStrip.Size = UDim2.new(1, 0, 0, 6)
-    colorStrip.Position = UDim2.new(0, 0, 0, 0)
-    colorStrip.BackgroundColor3 = building.color
-    colorStrip.BorderSizePixel = 0
-    colorStrip.Parent = cardFrame
-    
-    local stripCorner = Instance.new("UICorner")
-    stripCorner.CornerRadius = UDim.new(0, 12)
-    stripCorner.Parent = colorStrip
-    
-    -- 遮盖底部圆角
-    local stripCover = Instance.new("Frame")
-    stripCover.Size = UDim2.new(1, 0, 0, 6)
-    stripCover.Position = UDim2.new(0, 0, 0, 3)
-    stripCover.BackgroundColor3 = building.color
-    stripCover.BorderSizePixel = 0
-    stripCover.Parent = colorStrip
-    
-    -- 图标
+    -- 建筑图标
     local iconLabel = Instance.new("TextLabel")
-    iconLabel.Size = UDim2.new(0, 40, 0, 40)
-    iconLabel.Position = UDim2.new(0, 15, 0, 15)
+    iconLabel.Name = "IconLabel"
+    iconLabel.Size = UDim2.new(1, -10, 0, 60)
+    iconLabel.Position = UDim2.new(0, 5, 0, 5)
     iconLabel.BackgroundTransparency = 1
-    iconLabel.Text = building.icon
-    iconLabel.TextSize = 30
-    iconLabel.Font = Enum.Font.GothamBold
+    iconLabel.Text = config.icon
+    iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    iconLabel.TextScaled = true
+    iconLabel.Font = Enum.Font.SourceSansBold
     iconLabel.Parent = cardFrame
     
-    -- 名称
+    -- 建筑名称
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0, 130, 0, 25)
-    nameLabel.Position = UDim2.new(0, 60, 0, 15)
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, -10, 0, 25)
+    nameLabel.Position = UDim2.new(0, 5, 0, 70)
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = building.name
+    nameLabel.Text = config.name
     nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextSize = 16
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextScaled = true
+    nameLabel.Font = Enum.Font.SourceSansBold
     nameLabel.Parent = cardFrame
     
-    -- 描述
-    local descLabel = Instance.new("TextLabel")
-    descLabel.Size = UDim2.new(1, -20, 0, 35)
-    descLabel.Position = UDim2.new(0, 10, 0, 40)
-    descLabel.BackgroundTransparency = 1
-    descLabel.Text = building.description
-    descLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-    descLabel.TextSize = 12
-    descLabel.Font = Enum.Font.Gotham
-    descLabel.TextWrapped = true
-    descLabel.Parent = cardFrame
-    
-    -- 价格和购买按钮
+    -- 价格标签
     local priceLabel = Instance.new("TextLabel")
-    priceLabel.Size = UDim2.new(0, 80, 0, 20)
-    priceLabel.Position = UDim2.new(0, 15, 0, 85)
+    priceLabel.Name = "PriceLabel"
+    priceLabel.Size = UDim2.new(1, -10, 0, 20)
+    priceLabel.Position = UDim2.new(0, 5, 0, 100)
     priceLabel.BackgroundTransparency = 1
-    priceLabel.Text = building.price .. " Credits"
+    priceLabel.Text = "💰 " .. config.baseCost .. " Credits"
     priceLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-    priceLabel.TextSize = 14
-    priceLabel.Font = Enum.Font.GothamBold
-    priceLabel.TextXAlignment = Enum.TextXAlignment.Left
+    priceLabel.TextScaled = true
+    priceLabel.Font = Enum.Font.SourceSans
     priceLabel.Parent = cardFrame
     
-    local buyButton = Instance.new("TextButton")
-    buyButton.Size = UDim2.new(0, 80, 0, 25)
-    buyButton.Position = UDim2.new(1, -95, 0, 80)
-    buyButton.BackgroundColor3 = building.color
-    buyButton.Text = "购买"
-    buyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    buyButton.TextSize = 12
-    buyButton.Font = Enum.Font.GothamBold
-    buyButton.BorderSizePixel = 0
-    buyButton.Active = true
-    buyButton.Parent = cardFrame
+    -- 解锁状态
+    local unlockCondition = GameConstants.BUILDING_UNLOCK_CONDITIONS[buildingType]
+    local isUnlocked = true -- 这里应该根据玩家数据判断
     
-    local buyCorner = Instance.new("UICorner")
-    buyCorner.CornerRadius = UDim.new(0, 6)
-    buyCorner.Parent = buyButton
+    if not isUnlocked then
+        cardFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        
+        local lockLabel = Instance.new("TextLabel")
+        lockLabel.Name = "LockLabel"
+        lockLabel.Size = UDim2.new(1, -10, 0, 20)
+        lockLabel.Position = UDim2.new(0, 5, 0, 125)
+        lockLabel.BackgroundTransparency = 1
+        lockLabel.Text = string.format("🔒 需要Tier %d", unlockCondition.tier)
+        lockLabel.TextColor3 = Color3.fromRGB(200, 100, 100)
+        lockLabel.TextScaled = true
+        lockLabel.Font = Enum.Font.SourceSans
+        lockLabel.Parent = cardFrame
+    end
     
-    -- 购买按钮事件
-    buyButton.MouseButton1Click:Connect(function()
-        local playerCredits = getPlayerCredits()
-        if playerCredits >= building.price then
-            print("[BuildingShopUI] 购买建筑:", building.name)
-            selectedBuilding = building
-            hideShop()
-            startPlacementMode()
-        else
-            print("[BuildingShopUI] 积分不足，需要:", building.price, "当前:", playerCredits)
-            -- TODO: 显示积分不足提示
+    -- 选择状态
+    local selectFrame = Instance.new("Frame")
+    selectFrame.Name = "SelectFrame"
+    selectFrame.Size = UDim2.new(1, 0, 1, 0)
+    selectFrame.Position = UDim2.new(0, 0, 0, 0)
+    selectFrame.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
+    selectFrame.BackgroundTransparency = 0.8
+    selectFrame.BorderSizePixel = 0
+    selectFrame.Visible = false
+    selectFrame.Parent = cardFrame
+    
+    local selectCorner = Instance.new("UICorner")
+    selectCorner.CornerRadius = UDim.new(0, 10)
+    selectCorner.Parent = selectFrame
+    
+    -- 点击事件
+    local clickDetector = Instance.new("TextButton")
+    clickDetector.Name = "ClickDetector"
+    clickDetector.Size = UDim2.new(1, 0, 1, 0)
+    clickDetector.Position = UDim2.new(0, 0, 0, 0)
+    clickDetector.BackgroundTransparency = 1
+    clickDetector.Text = ""
+    clickDetector.Parent = cardFrame
+    
+    clickDetector.MouseButton1Click:Connect(function()
+        if isUnlocked then
+            BuildingShopUI.SelectBuilding(buildingType, config)
         end
     end)
     
     return cardFrame
 end
 
+--------------------------------------------------------------------
+-- UI管理函数
+--------------------------------------------------------------------
 
--- 显示商店界面
-local function showShop()
-    print("[BuildingShopUI] 显示建筑商店界面")
+-- 打开建筑商店UI
+function BuildingShopUI.OpenUI()
+    if BuildingShopUI.isOpen then return end
     
-    -- 通知教程系统商店已打开
-    local tutorialEvent = remoteFolder:FindFirstChild("TutorialEvent")
-    if tutorialEvent then
-        tutorialEvent:FireServer("STEP_COMPLETED", "OPEN_SHOP", {
-            target = "BuildingShopButton"
-        })
+    if not BuildingShopUI.gui then
+        BuildingShopUI.gui = createMainUI()
     end
     
-    if not buildingShopUI then
-        print("[BuildingShopUI] 创建新的建筑商店UI")
-        local ui, background, mainFrame, closeButton, contentFrame = createBuildingShopUI()
-        
-        buildingShopUI = {
-            gui = ui,
-            background = background,
-            mainFrame = mainFrame,
-            closeButton = closeButton,
-            contentFrame = contentFrame
-        }
-        
-        -- 关闭按钮
-        closeButton.MouseButton1Click:Connect(function()
-            hideShop()
-        end)
-        
-        -- 背景点击关闭
-        local backgroundButton = Instance.new("TextButton")
-        backgroundButton.Size = UDim2.new(1, 0, 1, 0)
-        backgroundButton.BackgroundTransparency = 1
-        backgroundButton.Text = ""
-        backgroundButton.Parent = background
-        
-        backgroundButton.MouseButton1Click:Connect(function()
-            hideShop()
-        end)
-        
-        -- 等待布局组件加载
-        task.wait(0.1)
-        
-        -- 创建建筑卡片
-        print("[BuildingShopUI] 创建建筑卡片")
-        for i, building in ipairs(BUILDINGS) do
-            print("[BuildingShopUI] 创建卡片:", building.name)
-            createBuildingCard(building, contentFrame, i)
-        end
-        
-        -- 设置滚动区域大小
-        task.wait(0.1)
-        local rows = math.ceil(#BUILDINGS / 3)
-        contentFrame.CanvasSize = UDim2.new(0, 0, 0, rows * 140)
-        print("[BuildingShopUI] 设置滚动区域大小:", rows * 140)
-    end
+    BuildingShopUI.isOpen = true
+    BuildingShopUI.gui.MainFrame.Visible = true
     
-    -- 显示动画
-    buildingShopUI.background.Visible = true
-    buildingShopUI.mainFrame.Visible = true
-    buildingShopUI.mainFrame.Size = UDim2.new(0, 0, 0, 0)
-    buildingShopUI.mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    -- 更新数据
+    BuildingShopUI.RefreshData()
     
-    local tween = TweenService:Create(buildingShopUI.mainFrame,
-        TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-        {
-            Size = UDim2.new(0, 700, 0, 500),
-            Position = UDim2.new(0.5, -350, 0.5, -250)
-        }
-    )
-    tween:Play()
+    -- 默认选择生产类建筑
+    BuildingShopUI.SelectCategory("PRODUCTION")
+    
+    print("[BuildingShopUI] 建筑商店界面已打开")
 end
 
-
--- 停止放置模式
-local function stopPlacementMode()
-    if not isPlacingMode then return end
+-- 关闭建筑商店UI
+function BuildingShopUI.CloseUI()
+    if not BuildingShopUI.isOpen then return end
     
-    print("[BuildingShopUI] 停止放置模式")
-    isPlacingMode = false
-    
-    if placementConnection then
-        placementConnection:Disconnect()
-        placementConnection = nil
+    BuildingShopUI.isOpen = false
+    if BuildingShopUI.gui then
+        BuildingShopUI.gui.MainFrame.Visible = false
     end
     
-    if ghostModel then
-        ghostModel:Destroy()
-        ghostModel = nil
-    end
-    
-    selectedBuilding = nil
+    print("[BuildingShopUI] 建筑商店界面已关闭")
 end
 
--- 放置建筑
-local function placeBuilding()
-    if not isPlacingMode or not selectedBuilding or not ghostModel then return end
+-- 切换Tab
+function BuildingShopUI.SwitchTab(tabName)
+    if BuildingShopUI.currentTab == tabName then return end
     
-    -- 获取虚影当前位置 - 针对Model+MeshPart结构
-    local ghostPosition
-    if ghostModel:IsA("Model") then
-        -- 找到Model中的MeshPart或Part
-        for _, child in pairs(ghostModel:GetChildren()) do
-            if child:IsA("MeshPart") or child:IsA("Part") then
-                ghostPosition = child.Position
-                break
+    BuildingShopUI.currentTab = tabName
+    
+    local shopFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ShopFrame
+    local manageFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ManageFrame
+    local shopTab = BuildingShopUI.gui.MainFrame.TitleBar.TabFrame.ShopTab
+    local manageTab = BuildingShopUI.gui.MainFrame.TitleBar.TabFrame.ManageTab
+    
+    if tabName == "shop" then
+        shopFrame.Visible = true
+        manageFrame.Visible = false
+        
+        shopTab.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
+        shopTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+        shopTab.Font = Enum.Font.SourceSansBold
+        
+        manageTab.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+        manageTab.TextColor3 = Color3.fromRGB(200, 200, 200)
+        manageTab.Font = Enum.Font.SourceSans
+        
+    elseif tabName == "manage" then
+        shopFrame.Visible = false
+        manageFrame.Visible = true
+        
+        shopTab.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+        shopTab.TextColor3 = Color3.fromRGB(200, 200, 200)
+        shopTab.Font = Enum.Font.SourceSans
+        
+        manageTab.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
+        manageTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+        manageTab.Font = Enum.Font.SourceSansBold
+        
+        -- 刷新管理页面数据
+        BuildingShopUI.RefreshManageData()
+    end
+    
+    print("[BuildingShopUI] 切换到标签: " .. tabName)
+end
+
+-- 选择建筑分类
+function BuildingShopUI.SelectCategory(categoryKey)
+    if BuildingShopUI.selectedCategory == categoryKey then return end
+    
+    BuildingShopUI.selectedCategory = categoryKey
+    
+    -- 更新分类按钮样式
+    local categoryFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ShopFrame.CategoryFrame
+    for _, button in ipairs(categoryFrame:GetChildren()) do
+        if button:IsA("TextButton") then
+            if button.Name == categoryKey .. "Button" then
+                button.BackgroundTransparency = 0
+                button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            else
+                button.BackgroundTransparency = 0.3
+                button.TextColor3 = Color3.fromRGB(200, 200, 200)
             end
         end
-    else
-        ghostPosition = ghostModel.Position
     end
-    print("[BuildingShopUI] 放置建筑:", selectedBuilding.name, "在位置:", ghostPosition)
     
-    -- 发送放置请求到服务器
-    print("[BuildingShopUI] 发送放置请求到服务器:", selectedBuilding.id, "位置:", ghostPosition)
+    -- 刷新建筑列表
+    BuildingShopUI.RefreshBuildingList(categoryKey)
     
-    local success = pcall(function()
-        placeBuildingEvent:FireServer(selectedBuilding.id, ghostPosition)
-    end)
+    print("[BuildingShopUI] 选择分类: " .. categoryKey)
+end
+
+-- 刷新建筑列表
+function BuildingShopUI.RefreshBuildingList(categoryKey)
+    local scrollFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ShopFrame.BuildingFrame.BuildingScrollFrame
     
-    if success then
-        print("[BuildingShopUI] 放置请求已发送")
+    -- 清空现有建筑
+    for _, child in ipairs(scrollFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    -- 添加该分类的建筑
+    local buildings = GameConstants.BUILDING_TYPES[categoryKey]
+    if buildings then
+        for buildingType, config in pairs(buildings) do
+            createBuildingCard(buildingType, config, scrollFrame)
+        end
+    end
+    
+    -- 更新滚动框大小
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollFrame.UIGridLayout.AbsoluteContentSize.Y + 20)
+end
+
+-- 选择建筑
+function BuildingShopUI.SelectBuilding(buildingType, config)
+    BuildingShopUI.selectedBuilding = {
+        type = buildingType,
+        config = config
+    }
+    
+    -- 更新建筑详情
+    local detailFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ShopFrame.BuildingFrame.DetailFrame
+    local detailLabel = detailFrame.DetailLabel
+    local purchaseButton = detailFrame.PurchaseButton
+    
+    local detailText = string.format(
+        "%s %s\n\n📖 %s\n\n💰 基础费用: %d Credits\n⚡ 能耗: %d/分钟\n📏 尺寸: %.0fx%.0fx%.0f",
+        config.icon, config.name,
+        config.description,
+        config.baseCost,
+        config.energyConsumption or 0,
+        config.baseSize.X, config.baseSize.Y, config.baseSize.Z
+    )
+    
+    if config.energyProduction then
+        detailText = detailText .. string.format("\n⚡ 发电: %d/分钟", config.energyProduction)
+    end
+    
+    if config.beautyValue then
+        detailText = detailText .. string.format("\n✨ 美观度: %d", config.beautyValue)
+    end
+    
+    detailLabel.Text = detailText
+    purchaseButton.Visible = true
+    
+    -- 更新选择状态
+    local scrollFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ShopFrame.BuildingFrame.BuildingScrollFrame
+    for _, card in ipairs(scrollFrame:GetChildren()) do
+        if card:IsA("Frame") then
+            local selectFrame = card:FindFirstChild("SelectFrame")
+            if selectFrame then
+                selectFrame.Visible = (card.Name == buildingType .. "Card")
+            end
+        end
+    end
+    
+    print("[BuildingShopUI] 选择建筑: " .. buildingType)
+end
+
+-- 购买建筑
+function BuildingShopUI.PurchaseBuilding()
+    if not BuildingShopUI.selectedBuilding then
+        print("[BuildingShopUI] 没有选择建筑")
+        return
+    end
+    
+    local buildingType = BuildingShopUI.selectedBuilding.type
+    
+    -- 关闭商店界面
+    BuildingShopUI.CloseUI()
+    
+    -- 启动建筑放置模式
+    if _G.BuildingPlacement then
+        _G.BuildingPlacement.StartPlacing(buildingType)
+        print("[BuildingShopUI] 开始放置建筑: " .. buildingType)
+    else
+        warn("[BuildingShopUI] BuildingPlacement系统未找到")
+    end
+end
+
+-- 刷新数据
+function BuildingShopUI.RefreshData()
+    -- 请求玩家建筑数据
+    placeBuildingEvent:FireServer("GET_BUILDINGS")
+    
+    -- TODO: 获取玩家游戏数据
+    
+    print("[BuildingShopUI] 数据已刷新")
+end
+
+-- 刷新管理数据
+function BuildingShopUI.RefreshManageData()
+    if BuildingShopUI.currentTab ~= "manage" then return end
+    
+    local listScrollFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ManageFrame.BuildingListFrame.ListScrollFrame
+    
+    -- 清空现有列表
+    for _, child in ipairs(listScrollFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    -- 添加已建造建筑
+    for buildingId, building in pairs(BuildingShopUI.playerBuildings) do
+        local listItem = Instance.new("Frame")
+        listItem.Name = buildingId
+        listItem.Size = UDim2.new(1, -10, 0, 60)
+        listItem.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+        listItem.BorderSizePixel = 0
+        listItem.Parent = listScrollFrame
         
-        -- 通知教程系统建筑已放置
-        local tutorialEvent = remoteFolder:FindFirstChild("TutorialEvent")
-        if tutorialEvent then
-            tutorialEvent:FireServer("STEP_COMPLETED", "PLACE_CRUSHER", {
-                buildingType = selectedBuilding.id
-            })
-        end
-    else
-        warn("[BuildingShopUI] 发送放置请求失败")
+        local itemCorner = Instance.new("UICorner")
+        itemCorner.CornerRadius = UDim.new(0, 8)
+        itemCorner.Parent = listItem
+        
+        local iconLabel = Instance.new("TextLabel")
+        iconLabel.Size = UDim2.new(0, 50, 1, 0)
+        iconLabel.Position = UDim2.new(0, 5, 0, 0)
+        iconLabel.BackgroundTransparency = 1
+        iconLabel.Text = building.config.icon
+        iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        iconLabel.TextScaled = true
+        iconLabel.Font = Enum.Font.SourceSansBold
+        iconLabel.Parent = listItem
+        
+        local infoLabel = Instance.new("TextLabel")
+        infoLabel.Size = UDim2.new(1, -120, 1, -10)
+        infoLabel.Position = UDim2.new(0, 60, 0, 5)
+        infoLabel.BackgroundTransparency = 1
+        infoLabel.Text = string.format("%s (Lv%d)\n状态: %s", 
+            building.config.name, building.level, 
+            building.status == "active" and "运行中" or "已暂停")
+        infoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        infoLabel.TextScaled = true
+        infoLabel.Font = Enum.Font.SourceSans
+        infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+        infoLabel.Parent = listItem
+        
+        local selectButton = Instance.new("TextButton")
+        selectButton.Size = UDim2.new(0, 50, 0, 40)
+        selectButton.Position = UDim2.new(1, -55, 0, 10)
+        selectButton.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
+        selectButton.BorderSizePixel = 0
+        selectButton.Text = "选择"
+        selectButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        selectButton.TextScaled = true
+        selectButton.Font = Enum.Font.SourceSansBold
+        selectButton.Parent = listItem
+        
+        local selectCorner = Instance.new("UICorner")
+        selectCorner.CornerRadius = UDim.new(0, 6)
+        selectCorner.Parent = selectButton
+        
+        selectButton.MouseButton1Click:Connect(function()
+            BuildingShopUI.SelectBuildingForManage(buildingId, building)
+        end)
     end
     
-    stopPlacementMode()
+    -- 更新滚动框大小
+    listScrollFrame.CanvasSize = UDim2.new(0, 0, 0, listScrollFrame.UIListLayout.AbsoluteContentSize.Y + 20)
+    
+    print("[BuildingShopUI] 管理数据已刷新")
 end
 
--- 输入处理
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if gameProcessedEvent then return end
+-- 选择要管理的建筑
+function BuildingShopUI.SelectBuildingForManage(buildingId, building)
+    BuildingShopUI.selectedBuildingForManage = {
+        id = buildingId,
+        data = building
+    }
     
-    if isPlacingMode then
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            placeBuilding()
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-            stopPlacementMode()
-        end
+    -- 更新操作面板
+    local operationFrame = BuildingShopUI.gui.MainFrame.ContentFrame.ManageFrame.OperationFrame
+    local infoLabel = operationFrame.InfoLabel
+    
+    local infoText = string.format(
+        "%s %s (Lv%d)\n\n📍 位置: %.1f, %.1f, %.1f\n⚡ 状态: %s\n🔧 建造时间: %s\n\n📊 统计:\n- 能耗: %d/分钟\n- 最大等级: %d",
+        building.config.icon, building.config.name, building.level,
+        building.position.X, building.position.Y, building.position.Z,
+        building.status == "active" and "运行中" or "已暂停",
+        os.date("%Y-%m-%d %H:%M", building.placedTime),
+        building.config.energyConsumption or 0,
+        building.config.maxLevel
+    )
+    
+    infoLabel.Text = infoText
+    
+    print("[BuildingShopUI] 选择管理建筑: " .. buildingId)
+end
+
+-- 升级选中建筑
+function BuildingShopUI.UpgradeSelectedBuilding()
+    if not BuildingShopUI.selectedBuildingForManage then
+        print("[BuildingShopUI] 没有选择要升级的建筑")
+        return
     end
     
-    -- ESC键关闭商店
-    if input.KeyCode == Enum.KeyCode.Escape and buildingShopUI and buildingShopUI.mainFrame.Visible then
-        hideShop()
+    local buildingId = BuildingShopUI.selectedBuildingForManage.id
+    placeBuildingEvent:FireServer("UPGRADE", { buildingId = buildingId })
+    
+    print("[BuildingShopUI] 发送升级请求: " .. buildingId)
+end
+
+-- 切换选中建筑状态
+function BuildingShopUI.ToggleSelectedBuilding()
+    if not BuildingShopUI.selectedBuildingForManage then
+        print("[BuildingShopUI] 没有选择要切换的建筑")
+        return
+    end
+    
+    local buildingId = BuildingShopUI.selectedBuildingForManage.id
+    manageBuildingEvent:FireServer("TOGGLE_BUILDING", { buildingId = buildingId })
+    
+    print("[BuildingShopUI] 发送状态切换请求: " .. buildingId)
+end
+
+-- 移除选中建筑
+function BuildingShopUI.RemoveSelectedBuilding()
+    if not BuildingShopUI.selectedBuildingForManage then
+        print("[BuildingShopUI] 没有选择要移除的建筑")
+        return
+    end
+    
+    local buildingId = BuildingShopUI.selectedBuildingForManage.id
+    placeBuildingEvent:FireServer("REMOVE", { buildingId = buildingId })
+    
+    print("[BuildingShopUI] 发送移除请求: " .. buildingId)
+end
+
+--------------------------------------------------------------------
+-- 键盘控制
+--------------------------------------------------------------------
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.B then
+        -- B键切换建筑商店界面
+        if BuildingShopUI.isOpen then
+            BuildingShopUI.CloseUI()
+        else
+            BuildingShopUI.OpenUI()
+        end
     end
 end)
 
--- 初始化
-local function initializeBuildingShop()
-    local buttonUI, shopButton = createBuildingShopButton()
-    
-    shopButton.MouseButton1Click:Connect(function()
-        showShop()
-    end)
-    
-    print("[BuildingShopUI] 建筑商店按钮创建完成")
-end
+--------------------------------------------------------------------
+-- 服务器事件处理
+--------------------------------------------------------------------
 
--- 启动
-task.spawn(function()
-    task.wait(2)
-    initializeBuildingShop()
-    print("[BuildingShopUI] 建筑商店系统已加载")
+-- 处理建筑放置事件响应
+placeBuildingEvent.OnClientEvent:Connect(function(action, data)
+    if action == "BUILDINGS_LIST" then
+        BuildingShopUI.playerBuildings = data
+        if BuildingShopUI.isOpen and BuildingShopUI.currentTab == "manage" then
+            BuildingShopUI.RefreshManageData()
+        end
+        
+    elseif action == "PLACE_SUCCESS" then
+        -- 建筑放置成功，刷新数据
+        BuildingShopUI.RefreshData()
+        
+    elseif action == "REMOVE_SUCCESS" then
+        -- 建筑移除成功，刷新数据
+        BuildingShopUI.RefreshData()
+        BuildingShopUI.selectedBuildingForManage = nil
+        
+    elseif action == "UPGRADE_SUCCESS" then
+        -- 建筑升级成功，刷新数据
+        BuildingShopUI.RefreshData()
+    end
 end)
 
-print("[BuildingShopUI] 建筑商店UI系统已启动")
+-- 处理建筑管理事件响应
+manageBuildingEvent.OnClientEvent:Connect(function(action, data)
+    if action == "BUILDING_TOGGLED" then
+        -- 建筑状态切换成功，刷新数据
+        if BuildingShopUI.selectedBuildingForManage and 
+           BuildingShopUI.selectedBuildingForManage.id == data.buildingId then
+            BuildingShopUI.selectedBuildingForManage.data.status = data.status
+            BuildingShopUI.SelectBuildingForManage(
+                BuildingShopUI.selectedBuildingForManage.id,
+                BuildingShopUI.selectedBuildingForManage.data
+            )
+        end
+        BuildingShopUI.RefreshData()
+        
+    elseif action == "BUILDING_ADDED" or action == "BUILDING_REMOVED" or action == "BUILDING_UPGRADED" then
+        -- 建筑变更，刷新数据
+        BuildingShopUI.RefreshData()
+    end
+end)
+
+-- 将BuildingShopUI暴露给全局，以便其他脚本调用
+_G.BuildingShopUI = BuildingShopUI
+
+print("[BuildingShopUI] 建筑商店界面系统已启动")
+print("按B键打开/关闭建筑商店界面")

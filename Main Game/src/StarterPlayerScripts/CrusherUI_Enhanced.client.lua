@@ -1,10 +1,11 @@
 --------------------------------------------------------------------
--- CrusherUI.client.lua · Crusher机器交互界面
+-- CrusherUI_Enhanced.client.lua · Crusher机器交互界面（增强版）
 -- 功能：
 --   1) 显示玩家Scrap数量和Crusher等级信息
 --   2) 输入要粉碎的Scrap数量
 --   3) 显示可获得的Credits
 --   4) 执行粉碎操作
+--   5) 集成新的10级建筑升级系统
 --------------------------------------------------------------------
 
 local Players = game:GetService("Players")
@@ -18,14 +19,53 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- 远程通讯
 local rfFolder = ReplicatedStorage:WaitForChild("RemoteFunctions")
 local getDataRF = rfFolder:WaitForChild("GetPlayerDataFunction")
-local getUpgradeInfoRF = rfFolder:WaitForChild("GetUpgradeInfoFunction")
+local getBuildingUpgradeInfoRF = rfFolder:WaitForChild("GetBuildingUpgradeInfoFunction")
 
 local reFolder = ReplicatedStorage:WaitForChild("RemoteEvents")
 local crushScrapEvent = reFolder:WaitForChild("CrushScrapEvent")
-local upgradeMachineEvent = reFolder:WaitForChild("UpgradeMachineEvent")
 
 -- 教程系统集成
 local tutorialEvent = reFolder:FindFirstChild("TutorialEvent")
+
+-- 等待共享模块
+local SharedModules = ReplicatedStorage:WaitForChild("SharedModules")
+local GameConstants = require(SharedModules.GameConstants.main)
+
+--------------------------------------------------------------------
+-- 工具函数
+--------------------------------------------------------------------
+
+-- 获取建筑当前等级数据
+local function getBuildingLevelStats(buildingType, level)
+    local upgradeData = GameConstants.BUILDING_UPGRADE_DATA
+    local queueLimit = upgradeData.QueueLimit[level] or 1
+    
+    local stats = {
+        level = level,
+        queueLimit = queueLimit
+    }
+    
+    -- 添加建筑特定属性
+    local buildingData = upgradeData[buildingType]
+    if buildingData then
+        for statName, values in pairs(buildingData) do
+            if statName ~= "description" and type(values) == "table" then
+                stats[statName] = values[level] or values[1] or 1
+            end
+        end
+    end
+    
+    return stats
+end
+
+-- 获取玩家建筑等级
+local function getPlayerBuildingLevel(buildingType)
+    local playerData = getDataRF:InvokeServer()
+    if not playerData or not playerData.Upgrades then return 1 end
+    
+    local levelKey = buildingType .. "Level"
+    return playerData.Upgrades[levelKey] or 1
+end
 
 --------------------------------------------------------------------
 -- 创建Crusher UI
@@ -33,7 +73,7 @@ local tutorialEvent = reFolder:FindFirstChild("TutorialEvent")
 local function createCrusherUI()
     -- 主界面
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "CrusherUI"
+    screenGui.Name = "CrusherUI_Enhanced"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = playerGui
@@ -98,12 +138,24 @@ local function createCrusherUI()
     contentFrame.BackgroundTransparency = 1
     contentFrame.Parent = mainFrame
     
+    -- 建筑等级信息
+    local levelInfoLabel = Instance.new("TextLabel")
+    levelInfoLabel.Size = UDim2.new(1, 0, 0, 25)
+    levelInfoLabel.Position = UDim2.new(0, 0, 0, 5)
+    levelInfoLabel.BackgroundTransparency = 1
+    levelInfoLabel.Text = "Level 1 - Speed: x1.0 - Queue: 1"
+    levelInfoLabel.TextColor3 = Color3.fromRGB(80, 80, 80)
+    levelInfoLabel.TextScaled = true
+    levelInfoLabel.Font = Enum.Font.GothamBold
+    levelInfoLabel.TextXAlignment = Enum.TextXAlignment.Center
+    levelInfoLabel.Parent = contentFrame
+    
     -- 玩家Scrap信息
     local scrapInfoLabel = Instance.new("TextLabel")
-    scrapInfoLabel.Size = UDim2.new(1, 0, 0, 30)
-    scrapInfoLabel.Position = UDim2.new(0, 0, 0, 10)
+    scrapInfoLabel.Size = UDim2.new(1, 0, 0, 25)
+    scrapInfoLabel.Position = UDim2.new(0, 0, 0, 35)
     scrapInfoLabel.BackgroundTransparency = 1
-    scrapInfoLabel.Text = "You have: 0 Scrap (Lv.1 Max/Run=2)"
+    scrapInfoLabel.Text = "You have: 0 Scrap"
     scrapInfoLabel.TextColor3 = Color3.fromRGB(60, 60, 60)
     scrapInfoLabel.TextScaled = true
     scrapInfoLabel.Font = Enum.Font.Gotham
@@ -113,7 +165,7 @@ local function createCrusherUI()
     -- Credits显示
     local creditsLabel = Instance.new("TextLabel")
     creditsLabel.Size = UDim2.new(1, 0, 0, 25)
-    creditsLabel.Position = UDim2.new(0, 0, 0, 45)
+    creditsLabel.Position = UDim2.new(0, 0, 0, 65)
     creditsLabel.BackgroundTransparency = 1
     creditsLabel.Text = "Credits +0"
     creditsLabel.TextColor3 = Color3.fromRGB(60, 60, 60)
@@ -125,7 +177,7 @@ local function createCrusherUI()
     -- 输入框容器
     local inputContainer = Instance.new("Frame")
     inputContainer.Size = UDim2.new(0.8, 0, 0, 50)
-    inputContainer.Position = UDim2.new(0.1, 0, 0, 90)
+    inputContainer.Position = UDim2.new(0.1, 0, 0, 110)
     inputContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     inputContainer.BorderSizePixel = 1
     inputContainer.BorderColor3 = Color3.fromRGB(200, 200, 200)
@@ -152,7 +204,7 @@ local function createCrusherUI()
     -- Crush按钮
     local crushButton = Instance.new("TextButton")
     crushButton.Size = UDim2.new(0.6, 0, 0, 45)
-    crushButton.Position = UDim2.new(0.2, 0, 0, 160)
+    crushButton.Position = UDim2.new(0.2, 0, 0, 180)
     crushButton.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
     crushButton.Text = "Crush"
     crushButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -169,7 +221,7 @@ local function createCrusherUI()
     -- 分隔线
     local separator = Instance.new("Frame")
     separator.Size = UDim2.new(0.9, 0, 0, 2)
-    separator.Position = UDim2.new(0.05, 0, 0, 220)
+    separator.Position = UDim2.new(0.05, 0, 0, 240)
     separator.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
     separator.BorderSizePixel = 0
     separator.Parent = contentFrame
@@ -177,33 +229,21 @@ local function createCrusherUI()
     -- 升级信息标签
     local upgradeInfoLabel = Instance.new("TextLabel")
     upgradeInfoLabel.Size = UDim2.new(1, 0, 0, 25)
-    upgradeInfoLabel.Position = UDim2.new(0, 0, 0, 235)
+    upgradeInfoLabel.Position = UDim2.new(0, 0, 0, 255)
     upgradeInfoLabel.BackgroundTransparency = 1
-    upgradeInfoLabel.Text = "Current: Lv.1 → Next: Lv.2 (Speed: 2 → 4)"
+    upgradeInfoLabel.Text = "Upgrade Available!"
     upgradeInfoLabel.TextColor3 = Color3.fromRGB(60, 60, 60)
     upgradeInfoLabel.TextScaled = true
     upgradeInfoLabel.Font = Enum.Font.Gotham
-    upgradeInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    upgradeInfoLabel.TextXAlignment = Enum.TextXAlignment.Center
     upgradeInfoLabel.Parent = contentFrame
-    
-    -- 升级费用标签
-    local upgradeCostLabel = Instance.new("TextLabel")
-    upgradeCostLabel.Size = UDim2.new(1, 0, 0, 20)
-    upgradeCostLabel.Position = UDim2.new(0, 0, 0, 265)
-    upgradeCostLabel.BackgroundTransparency = 1
-    upgradeCostLabel.Text = "Upgrade Cost: 500 Credits"
-    upgradeCostLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-    upgradeCostLabel.TextScaled = true
-    upgradeCostLabel.Font = Enum.Font.Gotham
-    upgradeCostLabel.TextXAlignment = Enum.TextXAlignment.Right
-    upgradeCostLabel.Parent = contentFrame
     
     -- 升级按钮
     local upgradeButton = Instance.new("TextButton")
     upgradeButton.Size = UDim2.new(0.6, 0, 0, 40)
     upgradeButton.Position = UDim2.new(0.2, 0, 0, 295)
     upgradeButton.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-    upgradeButton.Text = "Upgrade Machine"
+    upgradeButton.Text = "Upgrade Details"
     upgradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     upgradeButton.TextScaled = true
     upgradeButton.Font = Enum.Font.GothamBold
@@ -215,7 +255,7 @@ local function createCrusherUI()
     upgradeCorner.CornerRadius = UDim.new(0, 8)
     upgradeCorner.Parent = upgradeButton
     
-    return screenGui, mainFrame, closeButton, scrapInfoLabel, creditsLabel, amountInput, crushButton, upgradeInfoLabel, upgradeCostLabel, upgradeButton
+    return screenGui, mainFrame, closeButton, levelInfoLabel, scrapInfoLabel, creditsLabel, amountInput, crushButton, upgradeInfoLabel, upgradeButton
 end
 
 --------------------------------------------------------------------
@@ -224,20 +264,30 @@ end
 local crusherUI = nil
 local currentCrusher = nil
 
+-- 打开建筑升级UI
+local function openBuildingUpgradeUI()
+    if _G.BuildingUpgradeUI and _G.BuildingUpgradeUI.showUpgradeUI then
+        _G.BuildingUpgradeUI.showUpgradeUI("Crusher", "Crusher")
+        hideCrusherUI()
+    else
+        warn("[CrusherUI] BuildingUpgradeUI系统未加载")
+    end
+end
+
 -- 显示Crusher UI
 local function showCrusherUI(crusherModel)
     if not crusherUI then
-        local ui, mainFrame, closeButton, scrapInfoLabel, creditsLabel, amountInput, crushButton, upgradeInfoLabel, upgradeCostLabel, upgradeButton = createCrusherUI()
+        local ui, mainFrame, closeButton, levelInfoLabel, scrapInfoLabel, creditsLabel, amountInput, crushButton, upgradeInfoLabel, upgradeButton = createCrusherUI()
         crusherUI = {
             gui = ui,
             mainFrame = mainFrame,
             closeButton = closeButton,
+            levelInfoLabel = levelInfoLabel,
             scrapInfoLabel = scrapInfoLabel,
             creditsLabel = creditsLabel,
             amountInput = amountInput,
             crushButton = crushButton,
             upgradeInfoLabel = upgradeInfoLabel,
-            upgradeCostLabel = upgradeCostLabel,
             upgradeButton = upgradeButton
         }
         
@@ -303,58 +353,34 @@ end
 function updateCrusherUI()
     if not crusherUI or not currentCrusher then return end
     
-    -- 获取玩家数据和升级信息
+    -- 获取玩家数据
     local playerData = getDataRF:InvokeServer()
-    local upgradeInfo = getUpgradeInfoRF:InvokeServer("Crusher")
+    if not playerData then return end
     
-    if playerData and upgradeInfo then
-        local scrapAmount = playerData.Scrap or 0
-        local credits = playerData.Credits or 0
-        local level = upgradeInfo.level or 1
-        local maxRun = upgradeInfo.speed or 2
-        local nextSpeed = upgradeInfo.nextSpeed or maxRun
-        
-        -- 更新Scrap信息
-        crusherUI.scrapInfoLabel.Text = string.format("You have: %d Scrap (Lv.%d Max/Run=%d)", 
-            scrapAmount, level, maxRun)
-        
-        -- 更新当前转换比例显示（如果输入框为空）
-        if crusherUI.amountInput.Text == "" then
-            local creditsPerScrap = level
-            crusherUI.creditsLabel.Text = string.format("Credits +0 (1:%d)", creditsPerScrap)
-            crusherUI.creditsLabel.TextColor3 = Color3.fromRGB(60, 60, 60)
-        end
-        
-        -- 更新升级信息
-        if nextSpeed > maxRun then
-            crusherUI.upgradeInfoLabel.Text = string.format("Current: Lv.%d → Next: Lv.%d (Speed: %d → %d)", 
-                level, level + 1, maxRun, nextSpeed)
-            
-            -- 简单的升级费用计算（可以根据需要调整）
-            local upgradeCost = level * 500
-            crusherUI.upgradeCostLabel.Text = string.format("Upgrade Cost: %d Credits", upgradeCost)
-            
-            -- 检查是否有足够的Credits
-            if credits >= upgradeCost then
-                crusherUI.upgradeButton.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-                crusherUI.upgradeButton.Text = "Upgrade Machine"
-                crusherUI.upgradeCostLabel.TextColor3 = Color3.fromRGB(0, 150, 0)
-            else
-                crusherUI.upgradeButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-                crusherUI.upgradeButton.Text = "Need More Credits"
-                crusherUI.upgradeCostLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
-            end
-        else
-            crusherUI.upgradeInfoLabel.Text = string.format("Max Level Reached! (Lv.%d Speed: %d)", level, maxRun)
-            crusherUI.upgradeCostLabel.Text = "No upgrade available"
-            crusherUI.upgradeButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-            crusherUI.upgradeButton.Text = "Max Level"
-            crusherUI.upgradeCostLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-        end
-        
-        -- 更新Credits显示
-        updateCreditsDisplay()
+    local scrapAmount = playerData.Scrap or 0
+    local currentLevel = getPlayerBuildingLevel("Crusher")
+    local levelStats = getBuildingLevelStats("Crusher", currentLevel)
+    
+    -- 更新等级信息
+    crusherUI.levelInfoLabel.Text = string.format("Level %d - Speed: x%.1f - Queue: %d", 
+        currentLevel, levelStats.speed or 1, levelStats.queueLimit or 1)
+    
+    -- 更新Scrap信息
+    crusherUI.scrapInfoLabel.Text = string.format("You have: %d Scrap", scrapAmount)
+    
+    -- 更新升级信息
+    if currentLevel >= 10 then
+        crusherUI.upgradeInfoLabel.Text = "Maximum Level Reached!"
+        crusherUI.upgradeButton.Text = "Max Level"
+        crusherUI.upgradeButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    else
+        crusherUI.upgradeInfoLabel.Text = "Upgrade Available!"
+        crusherUI.upgradeButton.Text = "Upgrade Details"
+        crusherUI.upgradeButton.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
     end
+    
+    -- 更新Credits显示
+    updateCreditsDisplay()
 end
 
 -- 更新Credits显示
@@ -365,12 +391,11 @@ function updateCreditsDisplay()
     local amount = tonumber(inputText) or 0
     
     if amount > 0 then
-        -- 获取当前Crusher等级来计算正确的转换比例
-        local upgradeInfo = getUpgradeInfoRF:InvokeServer("Crusher")
-        local level = upgradeInfo and upgradeInfo.level or 1
+        local currentLevel = getPlayerBuildingLevel("Crusher")
+        local levelStats = getBuildingLevelStats("Crusher", currentLevel)
         
-        -- Credits转换比例基于等级：Level 1 = 1:1, Level 2 = 1:2, Level 3 = 1:3, 等等
-        local creditsPerScrap = level
+        -- Credits转换比例基于等级：Level 1 = 1:1, Level 2 = 1:2, 等等
+        local creditsPerScrap = currentLevel
         local credits = amount * creditsPerScrap
         
         crusherUI.creditsLabel.Text = string.format("Credits +%d (1:%d)", credits, creditsPerScrap)
@@ -421,52 +446,6 @@ function performCrush()
     crusherUI.amountInput.Text = ""
     
     -- 更新UI
-    updateCrusherUI()
-end
-
--- 执行升级操作
-function performUpgrade()
-    if not crusherUI or not currentCrusher then return end
-    
-    -- 获取当前升级信息
-    local playerData = getDataRF:InvokeServer()
-    local upgradeInfo = getUpgradeInfoRF:InvokeServer("Crusher")
-    
-    if not playerData or not upgradeInfo then return end
-    
-    local credits = playerData.Credits or 0
-    local level = upgradeInfo.level or 1
-    local nextSpeed = upgradeInfo.nextSpeed or upgradeInfo.speed
-    
-    -- 检查是否可以升级
-    if nextSpeed <= (upgradeInfo.speed or 2) then
-        -- 已达最高等级
-        crusherUI.upgradeInfoLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
-        task.wait(1)
-        crusherUI.upgradeInfoLabel.TextColor3 = Color3.fromRGB(60, 60, 60)
-        return
-    end
-    
-    local upgradeCost = level * 500
-    if credits < upgradeCost then
-        -- Credits不足
-        crusherUI.upgradeCostLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
-        crusherUI.upgradeButton.Text = "Not Enough Credits!"
-        task.wait(1)
-        crusherUI.upgradeCostLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
-        crusherUI.upgradeButton.Text = "Need More Credits"
-        return
-    end
-    
-    -- 发送升级请求
-    upgradeMachineEvent:FireServer("Crusher")
-    
-    -- 显示升级中状态
-    crusherUI.upgradeButton.Text = "Upgrading..."
-    crusherUI.upgradeButton.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-    
-    -- 等待一下然后更新UI
-    task.wait(0.5)
     updateCrusherUI()
 end
 
@@ -569,4 +548,4 @@ end)
 -- 初始化
 setupCrusherInteractions()
 
-print("[CrusherUI] Crusher UI系统已加载")
+print("[CrusherUI_Enhanced] 增强版Crusher UI系统已加载")

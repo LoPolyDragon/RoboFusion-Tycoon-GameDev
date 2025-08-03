@@ -15,11 +15,11 @@ EVT.Name = "RobotToggleEvent" -- 客户端发 {botLevel = 3, on = true/false}
 -- ② Bot 模板（5 个等级）
 ---------------------------------------------------------------
 local BOT_TEMPLATE = {
-	[1] = ServerStorage.BotModels.Level1Bot,
-	[2] = ServerStorage.BotModels.Level2Bot,
-	[3] = ServerStorage.BotModels.Level3Bot,
-	[4] = ServerStorage.BotModels.Level4Bot,
-	[5] = ServerStorage.BotModels.Level5Bot,
+	[1] = ServerStorage.RobotTemplates.UncommonBot,  -- Uncommon Bot
+	[2] = ServerStorage.RobotTemplates.RareBot,      -- Rare Bot  
+	[3] = ServerStorage.RobotTemplates.EpicBot,      -- Epic Bot
+	[4] = ServerStorage.RobotTemplates.SecretBot,    -- Secret Bot
+	[5] = ServerStorage.RobotTemplates.EcoBot,       -- Eco Bot
 }
 
 ---------------------------------------------------------------

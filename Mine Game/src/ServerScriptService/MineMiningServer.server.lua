@@ -54,7 +54,17 @@ local function canMine(plr, ore)
 	local tool = plr.Character and plr.Character:FindFirstChildWhichIsA("Tool")
 	local pk = tool and Const.PICKAXE_INFO[tool.Name]
 	local cfg = Const.ORE_INFO[ore]
-	return pk and cfg and cfg.hardness <= pk.maxHardness, cfg and cfg.time
+	
+	if not (pk and cfg) then
+		return false, nil
+	end
+	
+	-- 检查硬度是否足够
+	if cfg.hardness > pk.maxHardness then
+		return false, nil
+	end
+	
+	return true, cfg.time
 end
 
 local function locateHit(p)
@@ -79,22 +89,42 @@ RE.OnServerEvent:Connect(function(plr, cmd, part)
 		RE:FireClient(plr, "END")
 		return
 	end
+	
 	if cmd ~= "BEGIN" or ACTIVE[plr] or not part then
+		return
+	end
+
+	-- 检查玩家是否存在且有角色
+	if not (plr and plr.Character and plr.Character.PrimaryPart) then
 		return
 	end
 
 	local hit = locateHit(part)
 	if not hit then
+		-- 没找到可挖掘的矿石
+		RE:FireClient(plr, "ERROR", "无效的矿石")
 		return
 	end
+	
 	local ok, sec = canMine(plr, hit.Name)
 	if not ok then
+		-- 镐子不够硬或没有镐子
+		RE:FireClient(plr, "ERROR", "需要更高级的镐子")
+		return
+	end
+
+	-- 检查距离
+	local distance = (plr.Character.PrimaryPart.Position - hit.Position).Magnitude
+	if distance > 20 then -- 最大挖掘距离20格
+		RE:FireClient(plr, "ERROR", "距离太远")
 		return
 	end
 
 	local mdl = hit:FindFirstAncestorWhichIsA("Model") or hit
-	ACTIVE[plr] = { mdl = mdl, finish = tick() + sec }
+	ACTIVE[plr] = { mdl = mdl, finish = tick() + sec, oreName = hit.Name }
 	RE:FireClient(plr, "BEGIN", sec)
+	
+	print(("[MineMiningServer] 玩家 %s 开始挖掘 %s，预计耗时 %.1f 秒"):format(plr.Name, hit.Name, sec))
 end)
 
 ---------------- Heartbeat ---------------------
@@ -115,15 +145,40 @@ Run.Heartbeat:Connect(function()
 				end
 			end
 
+			-- 检查挖掘是否成功完成
 			if data.mdl and data.mdl.Parent then
 				local orePart = findOrePart(data.mdl)
 				if orePart then
-					GameLogic.AddItem(plr, orePart.Name, 1)
+					-- 添加矿物到玩家背包
+					local success = pcall(function()
+						GameLogic.AddItem(plr, orePart.Name, 1)
+					end)
+					
+					if success then
+						print(("[MineMiningServer] 玩家 %s 成功挖掘了 %s"):format(plr.Name, orePart.Name))
+						
+						-- 使邻近方块变为可碰撞，创造更真实的挖掘体验
+						solidNeighbours(data.mdl)
+						
+						-- 销毁挖掘的矿石
+						data.mdl:Destroy()
+						
+						-- 通知客户端挖掘成功
+						RE:FireClient(plr, "SUCCESS", data.oreName)
+					else
+						-- 挖掘失败，可能是背包满了等原因
+						RE:FireClient(plr, "ERROR", "挖掘失败，检查背包空间")
+					end
+				else
+					-- 找不到矿石部分
+					RE:FireClient(plr, "ERROR", "矿石已消失")
 				end
-				solidNeighbours(data.mdl)
-				data.mdl:Destroy()
+			else
+				-- 矿石模型已被销毁
+				RE:FireClient(plr, "ERROR", "矿石已消失")
 			end
-			RE:FireClient(plr, "END")
+			
+			-- 清理活动状态
 			ACTIVE[plr] = nil
 		end
 	end

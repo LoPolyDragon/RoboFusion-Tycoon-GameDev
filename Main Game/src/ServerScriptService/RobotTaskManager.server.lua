@@ -28,8 +28,11 @@ miningTaskEvent.Parent = remoteFolder
 local GameConstants = require(ReplicatedStorage.SharedModules.GameConstants.main)
 
 -- 任务存储结构
+local playerTasks = {} -- 玩家任务数据
+local robotMiningTimes = {} -- 机器人挖矿时间记录
 local playerWorkingRobots = {} -- [玩家] = { [机器人ID] = 工作机器人模型 }
 local taskIdCounter = 0
+local playerTaskQueues = {} -- 玩家任务优先级队列
 
 -- 获取PlayerDataManager的RemoteEvent
 local playerDataEvent = nil
@@ -67,8 +70,8 @@ local function calculateTaskDuration(robotType, oreType, quantity)
     return math.ceil(totalTime)
 end
 
--- 创建任务数据结构
-local function createMiningTask(player, robotType, oreType, quantity)
+-- 创建任务数据结构（增强版）
+local function createMiningTask(player, robotType, oreType, quantity, priority, autoReturn)
     local taskId = generateTaskId()
     local duration = calculateTaskDuration(robotType, oreType, quantity)
     local startTime = tick()
@@ -84,40 +87,235 @@ local function createMiningTask(player, robotType, oreType, quantity)
         startTime = startTime,
         estimatedEndTime = startTime + duration,
         status = "ASSIGNED", -- ASSIGNED, WORKING, COMPLETED, CANCELLED
-        location = "MAIN_WORLD" -- 当前所在世界
+        location = "MAIN_WORLD", -- 当前所在世界
+        priority = priority or 3, -- 任务优先级 (1-5)
+        autoReturn = autoReturn ~= false, -- 默认自动返回开启
+        createdTime = os.time(), -- 创建时间戳
+        lastUpdate = tick() -- 最后更新时间
     }
     
     return taskData
 end
 
--- 将机器人从main world移除（但保持Active状态）
+-- 优先级队列管理
+local function initializePlayerTaskQueue(player)
+    if not playerTaskQueues[player] then
+        playerTaskQueues[player] = {}
+    end
+end
+
+-- 将任务添加到优先级队列
+local function addTaskToQueue(player, taskData)
+    initializePlayerTaskQueue(player)
+    
+    local queue = playerTaskQueues[player]
+    table.insert(queue, taskData)
+    
+    -- 按优先级排序（高优先级在前）
+    table.sort(queue, function(a, b)
+        if a.priority == b.priority then
+            -- 优先级相同时按创建时间排序
+            return a.createdTime < b.createdTime
+        end
+        return a.priority > b.priority
+    end)
+    
+    print("[RobotTaskManager] 任务已添加到队列，当前队列长度:", #queue)
+end
+
+-- 从队列中获取下一个任务
+local function getNextTaskFromQueue(player)
+    initializePlayerTaskQueue(player)
+    
+    local queue = playerTaskQueues[player]
+    if #queue > 0 then
+        return table.remove(queue, 1) -- 移除并返回第一个任务
+    end
+    return nil
+end
+
+-- 从队列中移除特定任务
+local function removeTaskFromQueue(player, taskId)
+    initializePlayerTaskQueue(player)
+    
+    local queue = playerTaskQueues[player]
+    for i = #queue, 1, -1 do
+        if queue[i].taskId == taskId then
+            table.remove(queue, i)
+            print("[RobotTaskManager] 任务已从队列移除:", taskId)
+            break
+        end
+    end
+end
+
+-- 自动返回功能
+local function handleAutoReturn(player, taskData)
+    if not taskData.autoReturn then
+        print("[RobotTaskManager] 任务完成，但自动返回已禁用:", taskData.taskId)
+        return
+    end
+    
+    print("[RobotTaskManager] 开始自动返回流程:", taskData.taskId)
+    
+    -- 1. 从Mine world移除工作机器人
+    local workingRobots = playerWorkingRobots[player]
+    if workingRobots and workingRobots[taskData.taskId] then
+        local robot = workingRobots[taskData.taskId]
+        robot:Destroy()
+        workingRobots[taskData.taskId] = nil
+        print("[RobotTaskManager] 工作机器人已移除")
+    end
+    
+    -- 2. 恢复机器人到main world的跟随状态
+    restoreRobotToMainWorld(player, taskData.robotType)
+    print("[RobotTaskManager] 机器人已恢复到main world跟随状态")
+    
+    -- 3. 发送完成通知给客户端
+    if miningTaskEvent then
+        miningTaskEvent:FireClient(player, "TASK_COMPLETED", taskData)
+    end
+end
+
+-- 任务完成处理
+local function completeTask(player, taskData)
+    print("[RobotTaskManager] 任务完成:", taskData.taskId)
+    
+    taskData.status = "COMPLETED"
+    taskData.completedTime = tick()
+    
+    -- 处理自动返回
+    handleAutoReturn(player, taskData)
+    
+    -- 从优先级队列中移除
+    removeTaskFromQueue(player, taskData.taskId)
+    
+    -- TODO: 奖励处理
+    print("[RobotTaskManager] 任务奖励:", taskData.oreType, "x", taskData.quantity)
+end
+
+-- 检查任务是否需要中断（背包满、能量不足等）
+local function checkTaskInterruption(player, taskData)
+    -- TODO: 实现背包检查
+    -- TODO: 实现能量检查
+    
+    -- 示例：背包满时中断
+    local shouldInterrupt = false
+    local interruptReason = ""
+    
+    if shouldInterrupt then
+        print("[RobotTaskManager] 任务中断:", taskData.taskId, "原因:", interruptReason)
+        taskData.status = "INTERRUPTED"
+        taskData.interruptReason = interruptReason
+        taskData.interruptTime = tick()
+        
+        if taskData.autoReturn then
+            handleAutoReturn(player, taskData)
+        end
+        
+        return true
+    end
+    
+    return false
+end
+
+-- 存储临时禁用的机器人状态
+local disabledRobots = {} -- [player][robotType] = true
+
+-- 将机器人从main world移除（临时销毁，保存状态用于后续恢复）
 local function removeActiveRobotFromMainWorld(player, robotType)
     print("[RobotTaskManager] 将机器人从main world移除:", robotType, "玩家:", player.Name)
     
-    -- 找到并移除在main world跟随玩家的机器人
-    -- 但保持在Active状态，只是暂时不跟随
-    local Players = game:GetService("Players")
+    -- 记录机器人状态为禁用
+    if not disabledRobots[player] then
+        disabledRobots[player] = {}
+    end
+    disabledRobots[player][robotType] = true
     
-    -- 查找玩家的跟随机器人并移除
-    for _, robot in pairs(workspace:GetChildren()) do
-        if robot:IsA("Model") and robot:GetAttribute("Owner") == player.Name and 
-           robot:GetAttribute("RobotType") == robotType and robot:GetAttribute("Type") == "Robot" then
-            print("[RobotTaskManager] 找到main world中的机器人，移除:", robot.Name)
-            robot:Destroy()
+    -- 直接通过RobotActiveManager API移除机器人
+    local success, RobotActiveManager = pcall(require, game.ServerScriptService.ServerModules.RobotActiveManager)
+    if success and RobotActiveManager then
+        -- 检查机器人是否已激活
+        local isActive, botData = RobotActiveManager.IsRobotActive(player, robotType)
+        if isActive then
+            print("[RobotTaskManager] 通过API移除激活机器人:", robotType)
+            RobotActiveManager.RemoveRobot(player, robotType)
+            return true
+        else
+            print("[RobotTaskManager] 机器人未激活或已经移除:", robotType)
             return true
         end
+    else
+        warn("[RobotTaskManager] 无法加载RobotActiveManager:", RobotActiveManager)
     end
     
-    print("[RobotTaskManager] 机器人已从main world移除，但保持Active状态")
+    -- 备用方案：直接通过事件移除
+    local robotToggleEvent = ReplicatedStorage:FindFirstChild("RobotToggleEvent")
+    if robotToggleEvent then
+        print("[RobotTaskManager] 备用方案：通过事件移除机器人")
+        -- 直接调用OnServerEvent回调
+        spawn(function()
+            -- 模拟客户端发送事件
+            local callback = robotToggleEvent.OnServerEvent
+            if callback and callback.Fire then
+                callback:Fire(player, robotType, false)
+            end
+        end)
+        return true
+    end
+    
+    print("[RobotTaskManager] 机器人移除完成")
+    return true
+end
+
+-- 恢复机器人到main world的跟随状态
+local function restoreRobotToMainWorld(player, robotType)
+    print("[RobotTaskManager] 恢复机器人到main world:", robotType, "玩家:", player.Name)
+    
+    -- 清除禁用状态
+    if disabledRobots[player] then
+        disabledRobots[player][robotType] = nil
+    end
+    
+    -- 延迟重新激活，确保工作机器人已被清理
+    task.spawn(function()
+        task.wait(0.5)
+        
+        -- 直接通过RobotActiveManager API激活机器人
+        local success, RobotActiveManager = pcall(require, game.ServerScriptService.ServerModules.RobotActiveManager)
+        if success and RobotActiveManager then
+            print("[RobotTaskManager] 通过API恢复机器人:", robotType)
+            RobotActiveManager.SpawnRobot(player, robotType)
+        else
+            -- 备用方案：通过事件激活
+            local robotToggleEvent = ReplicatedStorage:FindFirstChild("RobotToggleEvent")
+            if robotToggleEvent then
+                print("[RobotTaskManager] 备用方案：通过事件恢复机器人")
+                -- 直接调用OnServerEvent回调
+                spawn(function()
+                    local callback = robotToggleEvent.OnServerEvent
+                    if callback and callback.Fire then
+                        callback:Fire(player, robotType, true)
+                    end
+                end)
+            end
+        end
+    end)
+    
     return true
 end
 
 -- 在Mine world中创建工作机器人
 local function createWorkingRobotInMine(player, taskData)
-    -- 检查Mine world是否存在
-    local mineWorld = workspace:FindFirstChild("MineWorld")
-    if not mineWorld then
-        warn("[RobotTaskManager] MineWorld不存在，无法创建工作机器人")
+    -- 检查玩家私人矿区是否存在
+    local privateMines = workspace:FindFirstChild("PrivateMines")
+    if not privateMines then
+        warn("[RobotTaskManager] PrivateMines文件夹不存在，无法创建工作机器人")
+        return nil
+    end
+    
+    local playerMine = privateMines:FindFirstChild(player.Name)
+    if not playerMine then
+        warn("[RobotTaskManager] 玩家私人矿区不存在:", player.Name)
         return nil
     end
     
@@ -150,22 +348,10 @@ local function createWorkingRobotInMine(player, taskData)
     workingRobot:SetAttribute("CompletedQuantity", 0)
     workingRobot:SetAttribute("Status", "WORKING")
     
-    -- 设置初始位置（在Mine world的随机位置）
-    local spawnArea = mineWorld:FindFirstChild("RobotSpawnArea")
-    local spawnPos
-    if spawnArea and spawnArea:IsA("Part") then
-        local areaSize = spawnArea.Size
-        spawnPos = spawnArea.Position + Vector3.new(
-            math.random(-areaSize.X/2, areaSize.X/2),
-            areaSize.Y/2 + 5,
-            math.random(-areaSize.Z/2, areaSize.Z/2)
-        )
-    else
-        -- 默认位置
-        spawnPos = Vector3.new(0, 50, 0) + Vector3.new(
-            math.random(-20, 20), 0, math.random(-20, 20)
-        )
-    end
+    -- 设置初始位置（在玩家私人矿区的随机位置）
+    local spawnPos = Vector3.new(0, 50, 0) + Vector3.new(
+        math.random(-20, 20), 0, math.random(-20, 20)
+    )
     
     if workingRobot.PrimaryPart then
         workingRobot:SetPrimaryPartCFrame(CFrame.new(spawnPos))
@@ -173,14 +359,15 @@ local function createWorkingRobotInMine(player, taskData)
         workingRobot.HumanoidRootPart.Position = spawnPos
     end
     
-    workingRobot.Parent = mineWorld
+    -- 将机器人放置在玩家的矿区中
+    workingRobot.Parent = playerMine
     
     print("[RobotTaskManager] 在Mine world创建工作机器人:", workingRobot.Name, "位置:", spawnPos)
     return workingRobot
 end
 
 -- 派发挖矿任务
-local function assignMiningTask(player, robotType, oreType, quantity)
+local function assignMiningTask(player, robotType, oreType, quantity, priority, autoReturn)
     print("[RobotTaskManager] 收到挖矿任务:", player.Name, robotType, oreType, quantity)
     
     -- 验证参数
@@ -200,11 +387,20 @@ local function assignMiningTask(player, robotType, oreType, quantity)
     end
     
     -- 创建任务
-    local taskData = createMiningTask(player, robotType, oreType, quantity)
+    local taskData = createMiningTask(player, robotType, oreType, quantity, priority, autoReturn)
+    
+    -- 添加到优先级队列
+    addTaskToQueue(player, taskData)
+    
+    -- 存储任务
+    if not playerTasks[player] then
+        playerTasks[player] = {}
+    end
+    playerTasks[player][taskData.taskId] = taskData
     
     -- 存储任务到PlayerDataManager
     if playerDataEvent then
-        playerDataEvent:FireServer(player, "CREATE_TASK", taskData.taskId, taskData)
+        playerDataEvent:FireClient(player, "CREATE_TASK", taskData.taskId, taskData)
     end
     
     -- 从main world移除机器人（但保持Active状态）
@@ -221,6 +417,11 @@ local function assignMiningTask(player, robotType, oreType, quantity)
             taskData.status = "WORKING"
             taskData.location = "MINE_WORLD"
         end
+    end
+    
+    -- 通知客户端任务已创建
+    if miningTaskEvent then
+        miningTaskEvent:FireClient(player, "TASK_CREATED", taskData)
     end
     
     print("[RobotTaskManager] 任务创建成功:", taskData.taskId)
@@ -397,6 +598,15 @@ local function robotMining(robot, taskData)
                 else
                     GameLogic.AddItem(player, oreType, quantity)
                 end
+                
+                -- 通知客户端进度更新
+                if miningTaskEvent then
+                    miningTaskEvent:FireClient(player, "TASK_PROGRESS", {
+                        robotType = taskData.robotType,
+                        completed = taskData.completed,
+                        quantity = taskData.quantity
+                    })
+                end
             end
             
             return true
@@ -420,14 +630,14 @@ local function updateWorkingRobots()
                     -- 检查任务是否完成
                     if taskData.completed >= taskData.quantity then
                         print("[RobotTaskManager] 任务完成:", taskId, "共挖掘", taskData.completed, "个", taskData.oreType)
-                        taskData.status = "COMPLETED"
+                        
+                        -- 调用完整的任务完成处理
+                        completeTask(player, taskData)
                         
                         -- 清理挖矿记录并移除工作机器人
                         robotMiningTimes[robot] = nil
                         robot:Destroy()
                         workingRobots[taskId] = nil
-                        
-                        -- TODO: 将机器人返回到库存中（可选）
                         
                         continue
                     end
@@ -445,8 +655,8 @@ miningTaskEvent.OnServerEvent:Connect(function(player, action, ...)
     print("[RobotTaskManager] 收到请求:", player.Name, action)
     
     if action == "ASSIGN" then
-        local robotType, oreType, quantity = ...
-        assignMiningTask(player, robotType, oreType, quantity)
+        local robotType, oreType, quantity, priority, autoReturn = ...
+        assignMiningTask(player, robotType, oreType, quantity, priority, autoReturn)
     elseif action == "CANCEL" then
         local taskId = ...
         -- TODO: 取消任务

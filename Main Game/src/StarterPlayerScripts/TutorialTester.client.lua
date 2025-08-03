@@ -24,16 +24,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     if gameProcessedEvent then return end
     
     if input.KeyCode == Enum.KeyCode.F then
-        -- F: 开始教程
-        print("[TutorialTester] F键被按下，尝试启动教程")
+        -- F: 手动重启教程（仅用于调试）
+        print("[TutorialTester] F键被按下，手动重启教程（调试模式）")
         if tutorialFunction then
             local success, errorMsg = pcall(function()
                 return tutorialFunction:InvokeServer("START_TUTORIAL")
             end)
             if success then
-                print("[TutorialTester] 手动启动教程:", errorMsg)
+                print("[TutorialTester] 手动重启教程:", errorMsg)
             else
-                warn("[TutorialTester] 启动教程失败:", errorMsg)
+                warn("[TutorialTester] 重启教程失败:", errorMsg)
             end
         else
             warn("[TutorialTester] tutorialFunction 不存在")
@@ -63,7 +63,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     elseif input.KeyCode == Enum.KeyCode.F8 then
         -- F8: 显示帮助
         print("[TutorialTester] 教程测试工具帮助:")
-        print("  F   - 开始教程")
+        print("  F   - 手动重启教程（调试用）")
         print("  F6  - 跳过教程") 
         print("  F7  - 查看教程进度")
         print("  F8  - 显示帮助")

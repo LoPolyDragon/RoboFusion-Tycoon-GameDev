@@ -2,7 +2,8 @@
 -- MineHandler.lua   ★ 只处理"挖矿请求" + 物品掉落
 --------------------------------------------------------------------
 local RS = game:GetService("ReplicatedStorage")
-local RE = RS:WaitForChild("RemoteEvents"):WaitForChild("MineRequestEvent")
+local RE = RS:FindFirstChild("MineRequestEvent") or Instance.new("RemoteEvent", RS)
+RE.Name = "MineRequestEvent"
 local GameLogic = require(game.ServerScriptService.ServerModules.GameLogicServer)
 
 local Const = require(RS.SharedModules.GameConstants)
@@ -101,6 +102,9 @@ RE.OnServerEvent:Connect(function(plr, part)
 	-- 4) 回包：true + 剩余耐久
 	RE:FireClient(plr, true, pickSlot.durability > 0 and pickSlot.durability or 0)
 end)
+
+-- 定义MineHandler模块
+local MineHandler = {}
 
 -- 添加这个函数来清除所有石头
 function MineHandler:ClearAllStones()

@@ -346,11 +346,13 @@ function TutorialCamera.unblockPlayerInput()
 	inputConnections = {}
 end
 
--- Auto-cleanup when tutorial camera is disabled
+-- Auto-cleanup when tutorial camera is disabled  
 local originalDisable = TutorialCamera.disable
-TutorialCamera.disable = function()
+function TutorialCamera.disable()
 	TutorialCamera.unblockPlayerInput()
-	originalDisable()
+	if originalDisable then
+		originalDisable()
+	end
 end
 
 -- Export the camera system

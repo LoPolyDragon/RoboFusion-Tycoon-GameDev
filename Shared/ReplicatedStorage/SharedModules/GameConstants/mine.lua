@@ -48,12 +48,38 @@ C.BotStats = {
 	EcoBot = { interval = 1.2 },
 }
 
+-- 镐子信息 (与主场景保持一致)
 C.PICKAXE_INFO = {
-	WoodPick = { maxHardness = 2, speedMul = 1.0 },
-	StonePick = { maxHardness = 3, speedMul = 0.9 },
-	IronPick = { maxHardness = 4, speedMul = 0.8 },
-	GoldPick = { maxHardness = 5, speedMul = 0.7 },
-	DiamondPick = { maxHardness = 6, speedMul = 0.6 },
+	WoodPick = { 
+		maxHardness = 2, 
+		durability = 50, 
+		material = "ScrapWood",
+		description = "木镐 - 耐久50格，可挖硬度1-2" 
+	},
+	IronPick = { 
+		maxHardness = 3, 
+		durability = 120, 
+		material = "IronBar",
+		description = "铁镐 - 耐久120格，可挖硬度3" 
+	},
+	BronzePick = { 
+		maxHardness = 4, 
+		durability = 250, 
+		material = "BronzeGear",
+		description = "青铜镐 - 耐久250格，可挖硬度4" 
+	},
+	GoldPick = { 
+		maxHardness = 5, 
+		durability = 400, 
+		material = "GoldPlatedEdge",
+		description = "黄金镐 - 耐久400格，可挖硬度5" 
+	},
+	DiamondPick = { 
+		maxHardness = 6, 
+		durability = 800, 
+		material = "DiamondTip",
+		description = "钻石镐 - 耐久800格，可挖硬度6（所有矿物）" 
+	},
 }
 
 return C

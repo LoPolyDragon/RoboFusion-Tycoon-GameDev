@@ -37,52 +37,79 @@ end
 local GameConstants = require(ReplicatedStorage.SharedModules.GameConstants.main)
 local IconUtils = require(ReplicatedStorage.ClientUtils.IconUtils)
 
--- 材料制作配方（熔炼）
+-- 冶炼配方（专门用于熔炼原材料成基础材料）
 local SMELTING_RECIPES = {
-    {
-        id = "ScrapWood",
-        name = "Scrap Wood",
-        materials = {Scrap = 5},
-        output = {ScrapWood = 1},
-        time = 3,
-        description = "用废料制作木材",
-        unlockLevel = 1
-    },
     {
         id = "IronBar",
         name = "Iron Bar",
-        materials = {Scrap = 1, IronOre = 1},
+        materials = {IronOre = 2},
         output = {IronBar = 1},
-        time = 8,
-        description = "熔炼铁锭：废料 + 铁矿",
+        time = 5,
+        description = "熔炼纯铁锭",
         unlockLevel = 1
     },
     {
-        id = "BronzeGear",
-        name = "Bronze Gear",
-        materials = {Scrap = 1, BronzeOre = 1},
-        output = {BronzeGear = 1},
-        time = 12,
-        description = "制作青铜齿轮：废料 + 青铜矿",
+        id = "CopperBar",
+        name = "Copper Bar",
+        materials = {Copper = 3},
+        output = {CopperBar = 1},
+        time = 4,
+        description = "熔炼铜锭",
+        unlockLevel = 1
+    },
+    {
+        id = "BronzeAlloy",
+        name = "Bronze Alloy",
+        materials = {CopperBar = 1, IronBar = 1},
+        output = {BronzeAlloy = 1},
+        time = 8,
+        description = "合成青铜合金",
         unlockLevel = 2
     },
     {
-        id = "GoldPlatedEdge",
-        name = "Gold-Plated Edge",
-        materials = {Scrap = 2, GoldOre = 1},
-        output = {GoldPlatedEdge = 1},
-        time = 18,
-        description = "制作镀金边缘：废料 + 金矿",
+        id = "SteelBar",
+        name = "Steel Bar",
+        materials = {IronBar = 2, Crystal = 1},
+        output = {SteelBar = 1},
+        time = 12,
+        description = "制作钢锭",
+        unlockLevel = 2
+    },
+    {
+        id = "GoldBar",
+        name = "Gold Bar",
+        materials = {GoldOre = 2},
+        output = {GoldBar = 1},
+        time = 10,
+        description = "熔炼金锭",
         unlockLevel = 3
     },
     {
-        id = "DiamondTip",
-        name = "Diamond Tip",
-        materials = {Scrap = 3, DiamondOre = 1},
-        output = {DiamondTip = 1},
-        time = 25,
-        description = "制作钻石尖端：废料 + 钻石矿",
+        id = "DiamondPlate",
+        name = "Diamond Plate",
+        materials = {DiamondOre = 1, SteelBar = 1},
+        output = {DiamondPlate = 1},
+        time = 20,
+        description = "制作钻石板",
         unlockLevel = 4
+    },
+    {
+        id = "TitaniumAlloy",
+        name = "Titanium Alloy",
+        materials = {TitaniumOre = 1, SteelBar = 2},
+        output = {TitaniumAlloy = 1},
+        time = 25,
+        description = "制作钛合金",
+        unlockLevel = 5
+    },
+    {
+        id = "UraniumCore",
+        name = "Uranium Core",
+        materials = {UraniumOre = 1, TitaniumAlloy = 1},
+        output = {UraniumCore = 1},
+        time = 30,
+        description = "制作铀核心",
+        unlockLevel = 6
     }
 }
 
@@ -544,7 +571,6 @@ local function showSmelterUI(smelterModel)
     end
     
     currentSmelter = smelterModel
-    updateSmelterUI()
     
     -- 显示动画
     smelterUI.mainFrame.Visible = true
@@ -559,6 +585,10 @@ local function showSmelterUI(smelterModel)
         }
     )
     tween:Play()
+    
+    -- 更新UI（在动画开始后）
+    task.wait(0.1)
+    updateSmelterUI()
 end
 
 -- 隐藏Smelter UI

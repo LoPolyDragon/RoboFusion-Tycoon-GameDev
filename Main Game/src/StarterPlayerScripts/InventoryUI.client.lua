@@ -35,7 +35,8 @@ end)
 -- 玩家的Active机器人状态
 local activeRobots = {} -- [slotIndex] = robotType
 
--- 任务系统UI组件
+-- UI组件
+local inventoryUI = nil -- 主库存界面
 local taskAssignmentUI = nil
 local rightClickMenu = nil
 local selectedOreType = nil
@@ -292,8 +293,8 @@ local function createTaskAssignmentUI(parent)
     -- 主任务窗口
     local taskFrame = Instance.new("Frame")
     taskFrame.Name = "TaskAssignmentFrame"
-    taskFrame.Size = UDim2.new(0, 400, 0, 500)
-    taskFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+    taskFrame.Size = UDim2.new(0, 400, 0, 600)
+    taskFrame.Position = UDim2.new(0.5, -200, 0.5, -300)
     taskFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     taskFrame.BorderSizePixel = 0
     taskFrame.Visible = false
@@ -474,6 +475,95 @@ local function createTaskAssignmentUI(parent)
     timeLabel.TextXAlignment = Enum.TextXAlignment.Left
     timeLabel.Parent = quantityFrame
     
+    -- 优先级设置区域
+    local priorityFrame = Instance.new("Frame")
+    priorityFrame.Size = UDim2.new(1, -20, 0, 60)
+    priorityFrame.Position = UDim2.new(0, 10, 0, 450)
+    priorityFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    priorityFrame.BorderSizePixel = 0
+    priorityFrame.Parent = taskFrame
+    
+    local priorityCorner = Instance.new("UICorner")
+    priorityCorner.CornerRadius = UDim.new(0, 8)
+    priorityCorner.Parent = priorityFrame
+    
+    local priorityLabel = Instance.new("TextLabel")
+    priorityLabel.Size = UDim2.new(0, 100, 0, 25)
+    priorityLabel.Position = UDim2.new(0, 10, 0, 10)
+    priorityLabel.BackgroundTransparency = 1
+    priorityLabel.Text = "Priority:"
+    priorityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    priorityLabel.TextSize = 14
+    priorityLabel.Font = Enum.Font.GothamBold
+    priorityLabel.TextXAlignment = Enum.TextXAlignment.Left
+    priorityLabel.Parent = priorityFrame
+    
+    -- 优先级滑块
+    local prioritySlider = Instance.new("Frame")
+    prioritySlider.Name = "PrioritySlider"
+    prioritySlider.Size = UDim2.new(0, 200, 0, 20)
+    prioritySlider.Position = UDim2.new(0, 120, 0, 12)
+    prioritySlider.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    prioritySlider.BorderSizePixel = 0
+    prioritySlider.Parent = priorityFrame
+    
+    local sliderCorner = Instance.new("UICorner")
+    sliderCorner.CornerRadius = UDim.new(0, 10)
+    sliderCorner.Parent = prioritySlider
+    
+    local sliderButton = Instance.new("TextButton")
+    sliderButton.Name = "SliderButton"
+    sliderButton.Size = UDim2.new(0, 20, 0, 20)
+    sliderButton.Position = UDim2.new(0.6, -10, 0, 0) -- 默认60%位置 (优先级3)
+    sliderButton.BackgroundColor3 = Color3.fromRGB(100, 180, 255)
+    sliderButton.Text = ""
+    sliderButton.BorderSizePixel = 0
+    sliderButton.Parent = prioritySlider
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 10)
+    buttonCorner.Parent = sliderButton
+    
+    local priorityValue = Instance.new("TextLabel")
+    priorityValue.Name = "PriorityValue"
+    priorityValue.Size = UDim2.new(0, 30, 0, 20)
+    priorityValue.Position = UDim2.new(0, 330, 0, 12)
+    priorityValue.BackgroundTransparency = 1
+    priorityValue.Text = "3"
+    priorityValue.TextColor3 = Color3.fromRGB(100, 180, 255)
+    priorityValue.TextSize = 14
+    priorityValue.Font = Enum.Font.GothamBold
+    priorityValue.TextXAlignment = Enum.TextXAlignment.Center
+    priorityValue.Parent = priorityFrame
+    
+    -- 自动返回开关
+    local autoReturnLabel = Instance.new("TextLabel")
+    autoReturnLabel.Size = UDim2.new(0, 120, 0, 20)
+    autoReturnLabel.Position = UDim2.new(0, 10, 0, 35)
+    autoReturnLabel.BackgroundTransparency = 1
+    autoReturnLabel.Text = "Auto Return:"
+    autoReturnLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    autoReturnLabel.TextSize = 12
+    autoReturnLabel.Font = Enum.Font.Gotham
+    autoReturnLabel.TextXAlignment = Enum.TextXAlignment.Left
+    autoReturnLabel.Parent = priorityFrame
+    
+    local autoReturnToggle = Instance.new("TextButton")
+    autoReturnToggle.Name = "AutoReturnToggle"
+    autoReturnToggle.Size = UDim2.new(0, 80, 0, 20)
+    autoReturnToggle.Position = UDim2.new(0, 140, 0, 35)
+    autoReturnToggle.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
+    autoReturnToggle.Text = "ON"
+    autoReturnToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    autoReturnToggle.TextSize = 12
+    autoReturnToggle.Font = Enum.Font.GothamBold
+    autoReturnToggle.BorderSizePixel = 0
+    autoReturnToggle.Parent = priorityFrame
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 10)
+    toggleCorner.Parent = autoReturnToggle
+    
     -- 确认按钮
     local confirmButton = Instance.new("TextButton")
     confirmButton.Name = "ConfirmButton"
@@ -491,7 +581,7 @@ local function createTaskAssignmentUI(parent)
     confirmCorner.CornerRadius = UDim.new(0, 8)
     confirmCorner.Parent = confirmButton
     
-    return taskFrame, closeButton, oreScrollFrame, quantityTextBox, timeLabel, confirmButton, robotNameLabel, robotStatsLabel
+    return taskFrame, closeButton, oreScrollFrame, quantityTextBox, timeLabel, confirmButton, robotNameLabel, robotStatsLabel, prioritySlider, sliderButton, priorityValue, autoReturnToggle
 end
 
 --------------------------------------------------------------------
@@ -696,7 +786,7 @@ local function showTaskAssignmentUI(robotType)
     
     -- 创建任务UI（如果不存在）
     if not taskAssignmentUI then
-        local taskFrame, closeButton, oreScrollFrame, quantityTextBox, timeLabel, confirmButton, robotNameLabel, robotStatsLabel = createTaskAssignmentUI(inventoryUI.gui)
+        local taskFrame, closeButton, oreScrollFrame, quantityTextBox, timeLabel, confirmButton, robotNameLabel, robotStatsLabel, prioritySlider, sliderButton, priorityValue, autoReturnToggle = createTaskAssignmentUI(inventoryUI.gui)
         
         taskAssignmentUI = {
             frame = taskFrame,
@@ -706,12 +796,70 @@ local function showTaskAssignmentUI(robotType)
             timeLabel = timeLabel,
             confirmButton = confirmButton,
             robotNameLabel = robotNameLabel,
-            robotStatsLabel = robotStatsLabel
+            robotStatsLabel = robotStatsLabel,
+            prioritySlider = prioritySlider,
+            sliderButton = sliderButton, 
+            priorityValue = priorityValue,
+            autoReturnToggle = autoReturnToggle
         }
         
         -- 关闭按钮事件
         closeButton.MouseButton1Click:Connect(function()
             hideTaskAssignmentUI()
+        end)
+        
+        -- 优先级滑块逻辑
+        local dragging = false
+        local function updatePriority(position)
+            local sliderSize = prioritySlider.AbsoluteSize.X
+            local relativePos = math.clamp(position / sliderSize, 0, 1)
+            local priority = math.floor(relativePos * 4) + 1 -- 1-5级优先级
+            
+            sliderButton.Position = UDim2.new(relativePos, -10, 0, 0)
+            priorityValue.Text = tostring(priority)
+            
+            -- 根据优先级改变颜色
+            if priority <= 2 then
+                priorityValue.TextColor3 = Color3.fromRGB(255, 100, 100) -- 低优先级-红色
+            elseif priority == 3 then
+                priorityValue.TextColor3 = Color3.fromRGB(255, 255, 100) -- 中优先级-黄色  
+            else
+                priorityValue.TextColor3 = Color3.fromRGB(100, 255, 100) -- 高优先级-绿色
+            end
+            
+            return priority
+        end
+        
+        sliderButton.MouseButton1Down:Connect(function()
+            dragging = true
+        end)
+        
+        game:GetService("UserInputService").InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end)
+        
+        game:GetService("UserInputService").InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local mousePos = input.Position
+                local sliderPos = prioritySlider.AbsolutePosition
+                local relativePos = mousePos.X - sliderPos.X
+                updatePriority(relativePos)
+            end
+        end)
+        
+        -- 自动返回开关逻辑
+        local autoReturn = true
+        autoReturnToggle.MouseButton1Click:Connect(function()
+            autoReturn = not autoReturn
+            if autoReturn then
+                autoReturnToggle.Text = "ON"
+                autoReturnToggle.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
+            else
+                autoReturnToggle.Text = "OFF"
+                autoReturnToggle.BackgroundColor3 = Color3.fromRGB(180, 100, 100)
+            end
         end)
         
         -- 数量输入事件
@@ -790,12 +938,17 @@ local function assignMiningTask()
         return
     end
     
-    print(string.format("[InventoryUI] 派发挖矿任务: %s -> %s x%d", currentTaskRobot, selectedOreType, quantity))
+    -- 获取优先级和自动返回设置
+    local priority = tonumber(taskAssignmentUI.priorityValue.Text) or 3
+    local autoReturn = taskAssignmentUI.autoReturnToggle.Text == "ON"
     
-    -- 发送任务到服务器
+    print(string.format("[InventoryUI] 派发挖矿任务: %s -> %s x%d (优先级:%d, 自动返回:%s)", 
+          currentTaskRobot, selectedOreType, quantity, priority, tostring(autoReturn)))
+    
+    -- 发送任务到服务器（包含新参数）
     if miningTaskEvent then
         print("[InventoryUI] 发送任务到服务器...")
-        miningTaskEvent:FireServer("ASSIGN", currentTaskRobot, selectedOreType, quantity)
+        miningTaskEvent:FireServer("ASSIGN", currentTaskRobot, selectedOreType, quantity, priority, autoReturn)
         print("[InventoryUI] 任务已发送")
     else
         warn("[InventoryUI] 无法发送任务：MiningTaskEvent未就绪")
@@ -931,7 +1084,7 @@ local function createStandaloneTaskUI(robotType)
     taskScreenGui.Parent = playerGui
     
     -- 创建任务派发窗口
-    local taskFrame, closeButton, oreScrollFrame, quantityTextBox, timeLabel, confirmButton, robotNameLabel, robotStatsLabel = createTaskAssignmentUI(taskScreenGui)
+    local taskFrame, closeButton, oreScrollFrame, quantityTextBox, timeLabel, confirmButton, robotNameLabel, robotStatsLabel, prioritySlider, sliderButton, priorityValue, autoReturnToggle = createTaskAssignmentUI(taskScreenGui)
     
     -- 设置全局任务UI引用
     taskAssignmentUI = {
@@ -943,6 +1096,10 @@ local function createStandaloneTaskUI(robotType)
         confirmButton = confirmButton,
         robotNameLabel = robotNameLabel,
         robotStatsLabel = robotStatsLabel,
+        prioritySlider = prioritySlider,
+        sliderButton = sliderButton,
+        priorityValue = priorityValue,
+        autoReturnToggle = autoReturnToggle,
         screenGui = taskScreenGui  -- 保存ScreenGui引用
     }
     
@@ -1447,9 +1604,9 @@ end
 UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     if gameProcessedEvent then return end
     
-    -- B键打开/关闭库存
-    if input.KeyCode == Enum.KeyCode.B then
-        print("[InventoryUI] B键被按下!")  -- 调试信息
+    -- I键打开/关闭库存
+    if input.KeyCode == Enum.KeyCode.I then
+        print("[InventoryUI] I键被按下!")  -- 调试信息
         if inventoryUI and inventoryUI.mainFrame.Visible then
             print("[InventoryUI] 关闭库存")
             hideInventoryUI()
@@ -1505,7 +1662,7 @@ end)
 task.spawn(function()
     task.wait(1)  -- 等待1秒确保系统启动
     setupOpenButton()  -- 设置StarterGui按钮
-    print("[InventoryUI] 系统准备就绪 - 按B键或点击按钮打开库存")
+    print("[InventoryUI] 系统准备就绪 - 按I键或点击按钮打开库存")
 end)
 
-print("[InventoryUI] Pet Simulator 99风格库存UI系统已加载 - 按B键或点击按钮打开")
+print("[InventoryUI] Pet Simulator 99风格库存UI系统已加载 - 按I键或点击按钮打开")
